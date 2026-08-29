@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/** @property ModifierSelectionType $selection_type */
 #[Fillable(['tenant_id', 'outlet_id', 'name', 'selection_type', 'minimum_selections', 'maximum_selections', 'is_required', 'is_active'])]
 class Modifier extends Model
 {

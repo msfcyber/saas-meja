@@ -1,4 +1,4 @@
-import { Head } from "@inertiajs/react";
+import { Head, router } from "@inertiajs/react";
 import {
     BellRing,
     ChevronRight,
@@ -7,68 +7,145 @@ import {
     Search,
     UtensilsCrossed,
     Volume2,
+    VolumeX,
 } from "lucide-react";
 import { useState } from "react";
-import { formatCurrency, orders as initialOrders } from "@/data/demo";
+import { Input } from "@/components/ui/input";
 
-const statusConfig = {
+type OrderStatus = "paid" | "accepted" | "preparing" | "ready" | "served" | "completed";
+type FilterStatus = "active" | OrderStatus;
+
+type OrderItem = {
+    id: number;
+    product_name: string;
+    variant_name: string | null;
+    quantity: number;
+    note: string | null;
+    modifiers: Array<{
+        modifier_name: string;
+        option_name: string;
+    }>;
+};
+
+type StaffOrder = {
+    id: number;
+    number: string;
+    status: OrderStatus;
+    status_label: string;
+    payment_status: string | null;
+    customer_name: string | null;
+    table: { name: string; code: string } | null;
+    grand_total: number;
+    currency: string;
+    created_at: string;
+    items: OrderItem[];
+};
+
+type Props = {
+    outlet: { name: string; timezone: string };
+    filters: { search: string; status: FilterStatus };
+    counts: Record<FilterStatus, number>;
+    orders: StaffOrder[];
+};
+
+const statusConfig: Record<
+    OrderStatus,
+    { next: OrderStatus | null; action: string; color: string }
+> = {
     paid: {
-        label: "Order baru",
         next: "accepted",
         action: "Terima order",
         color: "bg-amber-50 text-amber-800 border-amber-200",
     },
     accepted: {
-        label: "Diterima",
         next: "preparing",
         action: "Mulai siapkan",
         color: "bg-blue-50 text-blue-800 border-blue-200",
     },
     preparing: {
-        label: "Disiapkan",
         next: "ready",
         action: "Tandai siap",
         color: "bg-violet-50 text-violet-800 border-violet-200",
     },
     ready: {
-        label: "Siap disajikan",
         next: "served",
         action: "Sudah disajikan",
         color: "bg-emerald-50 text-emerald-800 border-emerald-200",
     },
     served: {
-        label: "Disajikan",
         next: "completed",
         action: "Selesaikan",
         color: "bg-slate-50 text-slate-700 border-slate-200",
     },
     completed: {
-        label: "Selesai",
-        next: "completed",
+        next: null,
         action: "Selesai",
         color: "bg-slate-100 text-slate-500 border-slate-200",
     },
-} as const;
+};
 
-type OrderStatus = keyof typeof statusConfig;
+const filterOptions: Array<{ id: FilterStatus; label: string }> = [
+    { id: "active", label: "Semua aktif" },
+    { id: "paid", label: "Baru" },
+    { id: "accepted", label: "Diterima" },
+    { id: "preparing", label: "Disiapkan" },
+    { id: "ready", label: "Siap" },
+    { id: "served", label: "Disajikan" },
+    { id: "completed", label: "Selesai" },
+];
 
-export default function Orders() {
-    const [items, setItems] = useState(() =>
-        initialOrders.map((order) => ({ ...order, status: order.status as OrderStatus })),
+function formatMoney(value: number, currency: string): string {
+    return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 0,
+    }).format(value);
+}
+
+function formatAge(createdAt: string): string {
+    const totalSeconds = Math.max(
+        0,
+        Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000),
     );
-    const [filter, setFilter] = useState<"active" | OrderStatus>("active");
-    const visibleOrders = items.filter((order) =>
-        filter === "active" ? order.status !== "completed" : order.status === filter,
-    );
+    const minutes = Math.floor(totalSeconds / 60);
 
-    const advance = (number: string) =>
-        setItems((current) =>
-            current.map((order) =>
-                order.number === number
-                    ? { ...order, status: statusConfig[order.status].next as OrderStatus }
-                    : order,
-            ),
+    if (minutes < 60) {
+        return `${String(minutes).padStart(2, "0")}:${String(totalSeconds % 60).padStart(2, "0")}`;
+    }
+
+    return `${Math.floor(minutes / 60)}j ${String(minutes % 60).padStart(2, "0")}m`;
+}
+
+export default function Orders({ outlet, filters, counts, orders }: Props) {
+    const [search, setSearch] = useState(filters.search);
+    const [soundEnabled, setSoundEnabled] = useState(true);
+    const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
+
+    function applyFilters(status: FilterStatus = filters.status) {
+        router.get(
+            "/orders",
+            { search: search || undefined, status: status === "active" ? undefined : status },
+            { preserveState: true, preserveScroll: true, replace: true },
         );
+    }
+
+    function advance(order: StaffOrder) {
+        const next = statusConfig[order.status].next;
+
+        if (next === null) {
+            return;
+        }
+
+        setPendingOrderId(order.id);
+        router.patch(
+            `/orders/${order.id}/status`,
+            { status: next },
+            {
+                preserveScroll: true,
+                onFinish: () => setPendingOrderId(null),
+            },
+        );
+    }
 
     return (
         <>
@@ -83,84 +160,117 @@ export default function Orders() {
                                 </h1>
                                 <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
                                     <span className="size-1.5 rounded-full bg-emerald-500" />
-                                    Live
+                                    Database
                                 </span>
                             </div>
                             <p className="mt-1 text-sm text-muted-foreground">
-                                Kedai Sore · 4 order aktif
+                                {outlet.name} · {counts.active} order aktif
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                             <button
                                 type="button"
+                                onClick={() => setSoundEnabled((enabled) => !enabled)}
                                 className="flex min-h-11 items-center gap-2 rounded-full border bg-background px-4 text-sm font-bold"
+                                aria-pressed={soundEnabled}
                             >
-                                <Volume2 className="size-4 text-primary" aria-hidden="true" /> Suara
-                                aktif
+                                {soundEnabled ? (
+                                    <Volume2 className="size-4 text-primary" aria-hidden="true" />
+                                ) : (
+                                    <VolumeX
+                                        className="size-4 text-muted-foreground"
+                                        aria-hidden="true"
+                                    />
+                                )}
+                                Suara {soundEnabled ? "aktif" : "mati"}
                             </button>
                             <button
                                 type="button"
+                                onClick={() => applyFilters()}
                                 className="flex min-h-11 items-center gap-2 rounded-full border bg-background px-4 text-sm font-bold"
                             >
                                 <Filter className="size-4" aria-hidden="true" /> Filter
                             </button>
-                            <label className="relative min-w-52 flex-1">
-                                <Search className="absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground" />
-                                <span className="sr-only">Cari order atau meja</span>
-                                <input
-                                    className="min-h-11 w-full rounded-full border bg-background pr-4 pl-10 text-sm outline-none focus:ring-2 focus:ring-ring"
-                                    placeholder="Cari order..."
+                            <form
+                                className="relative min-w-52 flex-1"
+                                onSubmit={(event) => {
+                                    event.preventDefault();
+                                    applyFilters();
+                                }}
+                            >
+                                <Search
+                                    className="absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground"
+                                    aria-hidden="true"
                                 />
-                            </label>
+                                <label className="sr-only" htmlFor="order-search">
+                                    Cari order atau meja
+                                </label>
+                                <Input
+                                    id="order-search"
+                                    value={search}
+                                    onChange={(event) => setSearch(event.target.value)}
+                                    className="min-h-11 rounded-full pr-4 pl-10"
+                                    placeholder="Cari order atau meja..."
+                                />
+                            </form>
                         </div>
                     </div>
                 </div>
 
                 <main className="mx-auto w-full max-w-[1600px] flex-1 p-4 sm:p-6 lg:p-8">
                     <div className="flex gap-2 overflow-x-auto pb-2">
-                        {[
-                            { id: "active", label: "Semua aktif" },
-                            { id: "paid", label: "Baru" },
-                            { id: "accepted", label: "Diterima" },
-                            { id: "preparing", label: "Disiapkan" },
-                            { id: "ready", label: "Siap" },
-                            { id: "completed", label: "Selesai" },
-                        ].map((option) => (
+                        {filterOptions.map((option) => (
                             <button
                                 key={option.id}
                                 type="button"
-                                onClick={() => setFilter(option.id as "active" | OrderStatus)}
-                                className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-bold ${filter === option.id ? "bg-foreground text-background" : "border bg-card hover:bg-secondary"}`}
+                                onClick={() => applyFilters(option.id)}
+                                className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-bold ${filters.status === option.id ? "bg-foreground text-background" : "border bg-card hover:bg-secondary"}`}
                             >
                                 {option.label}
+                                <span className="text-xs opacity-70">{counts[option.id]}</span>
                             </button>
                         ))}
                     </div>
 
                     <div className="mt-5 grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                        {visibleOrders.map((order) => {
+                        {orders.map((order) => {
                             const config = statusConfig[order.status];
+                            const itemCount = order.items.reduce(
+                                (total, item) => total + item.quantity,
+                                0,
+                            );
+
                             return (
                                 <article
-                                    key={order.number}
+                                    key={order.id}
                                     className={`overflow-hidden rounded-[1.4rem] border bg-card shadow-[0_16px_50px_-40px_rgba(48,39,28,0.7)] ${order.status === "paid" ? "ring-2 ring-amber-300/50" : ""}`}
                                 >
                                     <div className="flex items-center justify-between border-b p-5">
                                         <div className="flex items-center gap-3">
                                             <span className="flex size-12 items-center justify-center rounded-2xl bg-secondary text-lg font-bold text-primary">
-                                                {order.table.replace("Meja ", "")}
+                                                {order.table?.name.replace(/^Meja\s+/i, "") ?? "-"}
                                             </span>
                                             <div>
                                                 <h2 className="font-bold">{order.number}</h2>
                                                 <p className="mt-1 text-xs text-muted-foreground">
-                                                    {order.customer} · {order.items} item
+                                                    {order.customer_name ?? "Guest"} · {itemCount}{" "}
+                                                    item
+                                                </p>
+                                                <p
+                                                    className={`mt-1 text-[11px] font-semibold ${order.payment_status === "paid" ? "text-emerald-700" : "text-muted-foreground"}`}
+                                                >
+                                                    Pembayaran{" "}
+                                                    {order.payment_status === "paid"
+                                                        ? "lunas"
+                                                        : (order.payment_status ??
+                                                          "belum diverifikasi")}
                                                 </p>
                                             </div>
                                         </div>
                                         <span
                                             className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${config.color}`}
                                         >
-                                            {config.label}
+                                            {order.status_label}
                                         </span>
                                     </div>
                                     <div className="p-5">
@@ -169,47 +279,62 @@ export default function Orders() {
                                                 <Clock3
                                                     className="size-3.5 text-primary"
                                                     aria-hidden="true"
-                                                />{" "}
+                                                />
                                                 Menunggu
                                             </span>
-                                            <strong>{order.age}</strong>
+                                            <strong>{formatAge(order.created_at)}</strong>
                                         </div>
                                         <div className="mt-5 space-y-4 text-sm">
-                                            <div className="flex gap-3">
-                                                <strong className="w-5">1x</strong>
-                                                <div>
-                                                    <p className="font-bold">
-                                                        Nasi Ayam Kecombrang
-                                                    </p>
-                                                    <p className="mt-1 text-xs text-muted-foreground">
-                                                        Pedas sedang
-                                                    </p>
-                                                    <p className="mt-1 text-xs font-semibold text-primary">
-                                                        Catatan: tanpa bawang
-                                                    </p>
+                                            {order.items.map((item) => (
+                                                <div key={item.id} className="flex gap-3">
+                                                    <strong className="w-5 shrink-0">
+                                                        {item.quantity}x
+                                                    </strong>
+                                                    <div className="min-w-0">
+                                                        <p className="font-bold">
+                                                            {item.product_name}
+                                                        </p>
+                                                        {item.variant_name && (
+                                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                                {item.variant_name}
+                                                            </p>
+                                                        )}
+                                                        {item.modifiers.map((modifier) => (
+                                                            <p
+                                                                key={`${item.id}-${modifier.modifier_name}-${modifier.option_name}`}
+                                                                className="mt-1 text-xs text-muted-foreground"
+                                                            >
+                                                                {modifier.modifier_name}:{" "}
+                                                                {modifier.option_name}
+                                                            </p>
+                                                        ))}
+                                                        {item.note && (
+                                                            <p className="mt-1 text-xs font-semibold text-primary">
+                                                                Catatan: {item.note}
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div className="flex gap-3">
-                                                <strong className="w-5">2x</strong>
-                                                <div>
-                                                    <p className="font-bold">Es Kopi Aren</p>
-                                                    <p className="mt-1 text-xs text-muted-foreground">
-                                                        Es normal
-                                                    </p>
-                                                </div>
-                                            </div>
+                                            ))}
                                         </div>
                                         <div className="my-5 border-t" />
                                         <div className="flex items-center justify-between text-sm">
                                             <span className="text-muted-foreground">
-                                                Total dibayar
+                                                {order.payment_status === "paid"
+                                                    ? "Total dibayar"
+                                                    : "Total order"}
                                             </span>
-                                            <strong>{formatCurrency(order.total)}</strong>
+                                            <strong>
+                                                {formatMoney(order.grand_total, order.currency)}
+                                            </strong>
                                         </div>
                                         <button
                                             type="button"
-                                            onClick={() => advance(order.number)}
-                                            disabled={order.status === "completed"}
+                                            onClick={() => advance(order)}
+                                            disabled={
+                                                config.next === null || pendingOrderId === order.id
+                                            }
+                                            aria-busy={pendingOrderId === order.id}
                                             className="mt-5 flex min-h-12 w-full items-center justify-between rounded-full bg-foreground px-5 text-sm font-bold text-background transition-colors hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                             <span className="flex items-center gap-2">
@@ -219,7 +344,9 @@ export default function Orders() {
                                                         aria-hidden="true"
                                                     />
                                                 )}
-                                                {config.action}
+                                                {pendingOrderId === order.id
+                                                    ? "Menyimpan..."
+                                                    : config.action}
                                             </span>
                                             <ChevronRight className="size-4" aria-hidden="true" />
                                         </button>
@@ -227,12 +354,12 @@ export default function Orders() {
                                 </article>
                             );
                         })}
-                        {visibleOrders.length === 0 && (
+                        {orders.length === 0 && (
                             <div className="col-span-full rounded-[1.5rem] border border-dashed bg-card p-16 text-center">
                                 <UtensilsCrossed className="mx-auto size-8 text-muted-foreground" />
                                 <p className="mt-4 font-bold">Belum ada order di status ini</p>
                                 <p className="mt-2 text-sm text-muted-foreground">
-                                    Order baru akan muncul otomatis.
+                                    Order paid akan muncul setelah pembayaran terverifikasi.
                                 </p>
                             </div>
                         )}

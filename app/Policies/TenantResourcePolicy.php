@@ -37,12 +37,12 @@ abstract class TenantResourcePolicy
         return $this->view($user, $model);
     }
 
-    private function hasPermissionInContext(User $user): bool
+    protected function hasPermissionInContext(User $user, ?string $permission = null): bool
     {
-        return $this->context->tenant() !== null && $user->can($this->permission());
+        return $this->context->tenant() !== null && $user->can($permission ?? $this->permission());
     }
 
-    private function belongsToContext(Model $model): bool
+    protected function belongsToContext(Model $model): bool
     {
         return $this->context->tenantId() !== null
             && $model->getAttribute('tenant_id') === $this->context->tenantId()

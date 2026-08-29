@@ -6,22 +6,175 @@ import {
     Download,
     MapPin,
     ReceiptText,
+    ShoppingBag,
     UtensilsCrossed,
 } from "lucide-react";
 import { CustomerHeader } from "@/components/customer-header";
 import { formatCurrency, menuItems } from "@/data/demo";
+import type { CustomerOrder } from "@/types/customer";
 
-const steps = [
-    { label: "Pembayaran diterima", time: "19:42", done: true },
-    { label: "Pesanan diterima dapur", time: "19:43", done: true },
-    { label: "Sedang disiapkan", time: "19:46", done: true, active: true },
-    { label: "Siap disajikan", time: "Estimasi 19:55", done: false },
-];
+type Props = {
+    access?: { valid: boolean; message: string | null };
+    order?: CustomerOrder | null;
+};
 
-export default function Tracking() {
+const statusFlow = [
+    { status: "awaiting_payment", label: "Menunggu pembayaran" },
+    { status: "paid", label: "Pembayaran diterima" },
+    { status: "accepted", label: "Pesanan diterima dapur" },
+    { status: "preparing", label: "Sedang disiapkan" },
+    { status: "ready", label: "Siap disajikan" },
+    { status: "served", label: "Sudah disajikan" },
+    { status: "completed", label: "Selesai" },
+] as const;
+
+const demoOrder: CustomerOrder = {
+    id: 0,
+    number: "A-1048",
+    status: "preparing",
+    status_label: "Sedang disiapkan",
+    payment_status: "paid",
+    payment_method: "qris",
+    customer_name: "Raka",
+    outlet: { name: "Kedai Sore", currency: "IDR" },
+    table: { name: "Meja 08", code: "TBL-008" },
+    subtotal: 104000,
+    discount_amount: 0,
+    tax_name: "Pajak restoran",
+    tax_rate_basis_points: 1000,
+    tax_inclusive: false,
+    tax_amount: 10400,
+    fee_amount: 0,
+    grand_total: 114400,
+    currency: "IDR",
+    paid_at: "2026-08-29T12:42:00.000Z",
+    completed_at: null,
+    created_at: "2026-08-29T12:40:00.000Z",
+    items: [
+        {
+            id: 1,
+            product_name: menuItems[0].name,
+            variant_name: null,
+            quantity: 1,
+            unit_price: menuItems[0].price,
+            line_total: menuItems[0].price,
+            note: "Tanpa bawang",
+            modifiers: [{ modifier_name: "Level pedas", option_name: "Sedang", price_delta: 0 }],
+        },
+        {
+            id: 2,
+            product_name: menuItems[4].name,
+            variant_name: null,
+            quantity: 2,
+            unit_price: menuItems[4].price,
+            line_total: menuItems[4].price * 2,
+            note: null,
+            modifiers: [],
+        },
+    ],
+    status_history: [],
+};
+
+const statusCopy: Record<string, { label: string; headline: string; description: string }> = {
+    awaiting_payment: {
+        label: "Menunggu pembayaran",
+        headline: "Selesaikan pembayaran untuk mengirim pesananmu.",
+        description:
+            "Order sudah dicatat, tetapi belum masuk ke antrean dapur sampai pembayaran diverifikasi.",
+    },
+    paid: {
+        label: "Pembayaran diterima",
+        headline: "Pesananmu sudah diterima.",
+        description: "Staf akan segera meneruskan pesanan ke dapur.",
+    },
+    accepted: {
+        label: "Diterima dapur",
+        headline: "Pesananmu sedang masuk antrean dapur.",
+        description: "Staf sudah menerima order dan akan mulai menyiapkannya.",
+    },
+    preparing: {
+        label: "Sedang disiapkan",
+        headline: "Dapur sedang meracik pesananmu.",
+        description:
+            "Duduk santai, ya. Pesanan akan diantar langsung ke meja setelah semuanya siap.",
+    },
+    ready: {
+        label: "Siap disajikan",
+        headline: "Pesananmu sudah siap.",
+        description: "Staf akan segera mengantarkan pesanan ke meja.",
+    },
+    served: {
+        label: "Sudah disajikan",
+        headline: "Selamat menikmati pesananmu.",
+        description: "Pesanan sudah disajikan di meja.",
+    },
+    completed: {
+        label: "Selesai",
+        headline: "Terima kasih sudah memesan.",
+        description: "Pesanan ini sudah selesai.",
+    },
+};
+
+const formatTime = (value: string | null | undefined) => {
+    if (!value) {
+        return "-";
+    }
+
+    const date = new Date(value);
+
+    return Number.isNaN(date.getTime())
+        ? "-"
+        : new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit" }).format(date);
+};
+
+export default function Tracking({ access, order }: Props) {
+    if (access && !access.valid) {
+        return (
+            <>
+                <Head title="Order tidak ditemukan" />
+                <div className="min-h-screen bg-background">
+                    <CustomerHeader minimal />
+                    <main className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-xl items-center px-4 py-10 sm:px-6">
+                        <section className="w-full rounded-[1.75rem] border bg-card p-7 text-center shadow-sm sm:p-10">
+                            <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+                                <ShoppingBag className="size-8" aria-hidden="true" />
+                            </div>
+                            <p className="mt-6 text-xs font-bold tracking-[0.16em] text-primary uppercase">
+                                Tracking order
+                            </p>
+                            <h1 className="font-display mt-2 text-3xl font-bold tracking-tight">
+                                Order tidak ditemukan
+                            </h1>
+                            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                                {access.message ?? "Tautan tracking ini tidak dapat digunakan."}
+                            </p>
+                            <Link
+                                href="/"
+                                className="mt-7 inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground"
+                            >
+                                Kembali ke beranda
+                            </Link>
+                        </section>
+                    </main>
+                </div>
+            </>
+        );
+    }
+
+    const displayOrder = order ?? demoOrder;
+    const copy = statusCopy[displayOrder.status] ?? {
+        label: displayOrder.status_label,
+        headline: "Status pesanan diperbarui.",
+        description: "Simpan halaman ini untuk memantau pesanan.",
+    };
+    const currentIndex = statusFlow.findIndex((step) => step.status === displayOrder.status);
+    const historyByStatus = new Map(
+        displayOrder.status_history.map((entry) => [entry.to_status, entry]),
+    );
+
     return (
         <>
-            <Head title="Pesanan #A-1048" />
+            <Head title={`Pesanan #${displayOrder.number}`} />
             <div className="min-h-screen bg-background">
                 <CustomerHeader minimal />
                 <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-14">
@@ -33,29 +186,31 @@ export default function Tracking() {
                         <div className="relative">
                             <div className="flex items-center justify-between gap-4">
                                 <span className="rounded-full bg-[#d87655]/20 px-3 py-1.5 text-xs font-bold text-[#eda98f]">
-                                    #A-1048
+                                    #{displayOrder.number}
                                 </span>
                                 <span className="flex items-center gap-2 text-xs text-[#cbd1c3]">
-                                    <MapPin className="size-3.5" aria-hidden="true" /> Meja 08
+                                    <MapPin className="size-3.5" aria-hidden="true" />{" "}
+                                    {displayOrder.table?.name ?? "Meja"}
                                 </span>
                             </div>
                             <span className="mt-10 flex size-14 items-center justify-center rounded-2xl bg-[#d87655] text-white">
                                 <UtensilsCrossed className="size-6" aria-hidden="true" />
                             </span>
                             <p className="mt-6 text-sm font-bold tracking-[0.14em] text-[#eda98f] uppercase">
-                                Sedang disiapkan
+                                {copy.label}
                             </p>
                             <h1 className="font-display mt-2 text-4xl font-bold tracking-tight sm:text-5xl">
-                                Dapur sedang meracik pesananmu.
+                                {copy.headline}
                             </h1>
                             <p className="mt-4 max-w-lg leading-7 text-[#cbd1c3]">
-                                Duduk santai, ya. Pesanan akan diantar langsung ke meja setelah
-                                semuanya siap.
+                                {copy.description}
                             </p>
                             <div className="mt-8 flex w-fit items-center gap-3 rounded-full bg-white/8 px-4 py-3 text-sm">
                                 <Clock3 className="size-4 text-[#eda98f]" aria-hidden="true" />
                                 <span>
-                                    Estimasi siap <strong>7-10 menit lagi</strong>
+                                    {displayOrder.payment_status === "pending"
+                                        ? "Pembayaran menunggu verifikasi server"
+                                        : "Status diperbarui otomatis"}
                                 </span>
                             </div>
                         </div>
@@ -64,88 +219,115 @@ export default function Tracking() {
                     <section className="mt-6 rounded-[1.5rem] border bg-card p-6 sm:p-8">
                         <h2 className="font-display text-2xl font-bold">Perjalanan pesanan</h2>
                         <ol className="mt-7">
-                            {steps.map((step, index) => (
-                                <li key={step.label} className="relative flex gap-4 pb-8 last:pb-0">
-                                    {index < steps.length - 1 && (
-                                        <span
-                                            className={`absolute top-7 bottom-0 left-[13px] w-px ${step.done ? "bg-primary" : "bg-border"}`}
-                                            aria-hidden="true"
-                                        />
-                                    )}
-                                    <span
-                                        className={`relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full border ${step.done ? "border-primary bg-primary text-white" : "bg-card text-transparent"}`}
+                            {statusFlow.map((step, index) => {
+                                const history = historyByStatus.get(step.status);
+                                const done = currentIndex >= 0 && index <= currentIndex;
+                                const active = step.status === displayOrder.status;
+
+                                return (
+                                    <li
+                                        key={step.status}
+                                        className="relative flex gap-4 pb-8 last:pb-0"
                                     >
-                                        {step.done && (
-                                            <Check className="size-3.5" aria-hidden="true" />
+                                        {index < statusFlow.length - 1 && (
+                                            <span
+                                                className={`absolute top-7 bottom-0 left-[13px] w-px ${done ? "bg-primary" : "bg-border"}`}
+                                                aria-hidden="true"
+                                            />
                                         )}
-                                    </span>
-                                    <div className="flex flex-1 items-start justify-between gap-4">
-                                        <div>
-                                            <p
-                                                className={`text-sm font-bold ${!step.done ? "text-muted-foreground" : ""}`}
-                                            >
-                                                {step.label}
-                                            </p>
-                                            {step.active && (
-                                                <p className="mt-1 text-xs text-primary">
-                                                    Diperbarui otomatis
-                                                </p>
+                                        <span
+                                            className={`relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full border ${done ? "border-primary bg-primary text-white" : "bg-card text-transparent"}`}
+                                        >
+                                            {done && (
+                                                <Check className="size-3.5" aria-hidden="true" />
                                             )}
+                                        </span>
+                                        <div className="flex flex-1 items-start justify-between gap-4">
+                                            <div>
+                                                <p
+                                                    className={`text-sm font-bold ${!done ? "text-muted-foreground" : ""}`}
+                                                >
+                                                    {step.label}
+                                                </p>
+                                                {active && (
+                                                    <p className="mt-1 text-xs text-primary">
+                                                        Diperbarui otomatis
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <time className="text-xs text-muted-foreground">
+                                                {formatTime(history?.created_at)}
+                                            </time>
                                         </div>
-                                        <time className="text-xs text-muted-foreground">
-                                            {step.time}
-                                        </time>
-                                    </div>
-                                </li>
-                            ))}
+                                    </li>
+                                );
+                            })}
                         </ol>
                     </section>
 
                     <section className="mt-6 rounded-[1.5rem] border bg-card p-6 sm:p-8">
                         <div className="flex items-center justify-between">
                             <h2 className="font-display text-2xl font-bold">Detail pesanan</h2>
-                            <span className="text-xs text-muted-foreground">3 item</span>
+                            <span className="text-xs text-muted-foreground">
+                                {displayOrder.items.reduce((sum, item) => sum + item.quantity, 0)}{" "}
+                                item
+                            </span>
                         </div>
                         <div className="mt-6 space-y-5">
-                            {[
-                                { item: menuItems[0], quantity: 1 },
-                                { item: menuItems[4], quantity: 2 },
-                            ].map(({ item, quantity }) => (
-                                <div key={item.id} className="flex items-center gap-4">
-                                    <img
-                                        src={item.image}
-                                        alt=""
-                                        className="size-14 rounded-xl object-cover"
-                                    />
+                            {displayOrder.items.map((item) => (
+                                <div key={item.id} className="flex items-start gap-4">
+                                    <div className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
+                                        <ShoppingBag className="size-5" aria-hidden="true" />
+                                    </div>
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate text-sm font-bold">
-                                            {quantity}x {item.name}
+                                            {item.quantity}x {item.product_name}
                                         </p>
                                         <p className="mt-1 text-xs text-muted-foreground">
-                                            {item.id === 1
-                                                ? "Pedas sedang · tanpa bawang"
-                                                : "Es normal"}
+                                            {[
+                                                item.variant_name,
+                                                ...item.modifiers.map(
+                                                    (modifier) => modifier.option_name,
+                                                ),
+                                                item.note,
+                                            ]
+                                                .filter(Boolean)
+                                                .join(" · ") || "Tanpa catatan tambahan"}
                                         </p>
                                     </div>
                                     <p className="text-sm font-bold">
-                                        {formatCurrency(item.price * quantity)}
+                                        {formatCurrency(item.line_total)}
                                     </p>
                                 </div>
                             ))}
                         </div>
                         <div className="my-6 border-t" />
-                        <div className="flex items-center justify-between">
-                            <span className="font-bold">Total dibayar</span>
-                            <span className="font-display text-2xl font-bold">
-                                {formatCurrency(114400)}
-                            </span>
-                        </div>
+                        <dl className="space-y-3 text-sm">
+                            <div className="flex justify-between text-muted-foreground">
+                                <dt>Subtotal</dt>
+                                <dd>{formatCurrency(displayOrder.subtotal)}</dd>
+                            </div>
+                            {displayOrder.tax_amount > 0 && (
+                                <div className="flex justify-between text-muted-foreground">
+                                    <dt>{displayOrder.tax_name ?? "Pajak"}</dt>
+                                    <dd>{formatCurrency(displayOrder.tax_amount)}</dd>
+                                </div>
+                            )}
+                            <div className="flex justify-between font-bold">
+                                <dt>
+                                    Total{" "}
+                                    {displayOrder.payment_status === "paid" ? "dibayar" : "pesanan"}
+                                </dt>
+                                <dd>{formatCurrency(displayOrder.grand_total)}</dd>
+                            </div>
+                        </dl>
                     </section>
 
                     <div className="mt-6 grid gap-3 sm:grid-cols-2">
                         <button
                             type="button"
-                            className="flex min-h-12 items-center justify-between rounded-full border bg-card px-5 text-sm font-bold transition-colors hover:bg-secondary"
+                            disabled
+                            className="flex min-h-12 items-center justify-between rounded-full border bg-card px-5 text-sm font-bold opacity-60"
                         >
                             <span className="flex items-center gap-2">
                                 <ReceiptText className="size-4" aria-hidden="true" /> Lihat struk
@@ -155,15 +337,16 @@ export default function Tracking() {
                         </button>
                         <button
                             type="button"
-                            className="flex min-h-12 items-center justify-center gap-2 rounded-full border bg-card px-5 text-sm font-bold transition-colors hover:bg-secondary"
+                            disabled
+                            className="flex min-h-12 items-center justify-center gap-2 rounded-full border bg-card px-5 text-sm font-bold opacity-60"
                         >
                             <Download className="size-4" aria-hidden="true" /> Simpan detail pesanan
                         </button>
                     </div>
                     <p className="mt-8 text-center text-xs leading-5 text-muted-foreground">
                         Simpan halaman ini untuk kembali melihat status pesanan.{" "}
-                        <Link href="/demo/menu" className="font-bold text-primary">
-                            Kembali ke menu
+                        <Link href="/" className="font-bold text-primary">
+                            Kembali ke beranda
                         </Link>
                     </p>
                 </main>

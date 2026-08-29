@@ -12,12 +12,11 @@ use App\Models\ModifierOption;
 use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\ProductVariant;
-use App\Models\TableQrToken;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\TableQrCodeService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 class DemoTenantSeeder extends Seeder
 {
@@ -171,14 +170,7 @@ class DemoTenantSeeder extends Seeder
                 ],
             );
 
-            TableQrToken::query()->firstOrCreate(
-                ['table_id' => $table->id, 'revoked_at' => null],
-                [
-                    'tenant_id' => $tenant->id,
-                    'outlet_id' => $outlet->id,
-                    'token_hash' => hash('sha256', Str::random(64)),
-                ],
-            );
+            app(TableQrCodeService::class)->ensure($table);
         }
     }
 }

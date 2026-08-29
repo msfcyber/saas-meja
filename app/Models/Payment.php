@@ -2,25 +2,38 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentStatus;
 use App\Models\Concerns\BelongsToOutlet;
 use App\Models\Concerns\BelongsToTenant;
 use Carbon\CarbonImmutable;
-use Database\Factories\TableQrTokenFactory;
+use Database\Factories\PaymentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * @property CarbonImmutable|null $expires_at
- * @property CarbonImmutable|null $revoked_at
+ * @property PaymentStatus $status
+ * @property CarbonImmutable|null $last_webhook_at
  */
-#[Fillable(['tenant_id', 'outlet_id', 'table_id', 'token_hash', 'qr_path', 'last_used_at', 'expires_at', 'revoked_at'])]
-#[Hidden(['token_hash', 'qr_path'])]
-class TableQrToken extends Model
+#[Fillable([
+    'tenant_id',
+    'outlet_id',
+    'order_id',
+    'method',
+    'status',
+    'amount',
+    'currency',
+    'provider',
+    'provider_reference',
+    'expires_at',
+    'paid_at',
+    'last_webhook_at',
+    'metadata',
+])]
+class Payment extends Model
 {
-    /** @use HasFactory<TableQrTokenFactory> */
+    /** @use HasFactory<PaymentFactory> */
     use BelongsToOutlet, BelongsToTenant, HasFactory;
 
     /** @return BelongsTo<Tenant, $this> */
@@ -35,18 +48,21 @@ class TableQrToken extends Model
         return $this->belongsTo(Outlet::class);
     }
 
-    /** @return BelongsTo<DiningTable, $this> */
-    public function table(): BelongsTo
+    /** @return BelongsTo<Order, $this> */
+    public function order(): BelongsTo
     {
-        return $this->belongsTo(DiningTable::class, 'table_id');
+        return $this->belongsTo(Order::class);
     }
 
     protected function casts(): array
     {
         return [
-            'last_used_at' => 'datetime',
+            'status' => PaymentStatus::class,
+            'amount' => 'integer',
             'expires_at' => 'datetime',
-            'revoked_at' => 'datetime',
+            'paid_at' => 'datetime',
+            'last_webhook_at' => 'datetime',
+            'metadata' => 'array',
         ];
     }
 }

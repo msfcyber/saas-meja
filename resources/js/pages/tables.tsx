@@ -1,5 +1,5 @@
 import { Head, router, useForm } from "@inertiajs/react";
-import { Plus, QrCode, Table2 } from "lucide-react";
+import { Ban, Download, Plus, Printer, QrCode, RefreshCw, Table2 } from "lucide-react";
 import { useState } from "react";
 import InputError from "@/components/input-error";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,9 @@ type DiningTable = {
     capacity: number;
     is_active: boolean;
     has_active_qr: boolean;
+    qr_url: string | null;
+    qr_download_url: string | null;
+    qr_print_url: string | null;
 };
 type Props = {
     filters: { zone: string | null };
@@ -33,6 +36,7 @@ type Props = {
 
 export default function Tables({ filters, summary, zones, tables }: Props) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [processingTableId, setProcessingTableId] = useState<number | null>(null);
     const form = useForm({ name: "", code: "", zone: "", capacity: "4", is_active: true });
 
     function createTable(event: React.FormEvent<HTMLFormElement>) {
@@ -43,6 +47,46 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                 setIsCreateOpen(false);
             },
         });
+    }
+
+    function regenerateQr(table: DiningTable) {
+        if (
+            !window.confirm(
+                `Buat QR baru untuk ${table.name}? QR lama akan langsung tidak berlaku.`,
+            )
+        ) {
+            return;
+        }
+
+        setProcessingTableId(table.id);
+        router.post(
+            `/tables/${table.id}/regenerate-qr`,
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => setProcessingTableId(null),
+            },
+        );
+    }
+
+    function revokeQr(table: DiningTable) {
+        if (
+            !window.confirm(
+                `Cabut QR ${table.name}? Customer tidak dapat membuka menu dari QR ini.`,
+            )
+        ) {
+            return;
+        }
+
+        setProcessingTableId(table.id);
+        router.post(
+            `/tables/${table.id}/revoke-qr`,
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => setProcessingTableId(null),
+            },
+        );
     }
 
     return (
@@ -159,18 +203,79 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                         {table.code}
                                     </span>
                                 </div>
-                                <div className="mx-5 flex min-h-32 flex-col items-center justify-center rounded-2xl bg-[#e9e1cf] p-5 text-[#273024]">
-                                    <QrCode className="size-16" strokeWidth={1.5} />
-                                    <p className="mt-2 text-center text-xs font-semibold">
-                                        {table.has_active_qr
-                                            ? "QR aktif tersimpan"
-                                            : "QR belum dibuat"}
-                                    </p>
+                                <div className="mx-5 flex min-h-32 items-center justify-center overflow-hidden rounded-2xl bg-[#e9e1cf] p-4 text-[#273024]">
+                                    {table.qr_url ? (
+                                        <img
+                                            src={table.qr_url}
+                                            alt={`QR untuk ${table.name}`}
+                                            className="size-36 max-w-full object-contain"
+                                        />
+                                    ) : (
+                                        <div className="flex flex-col items-center">
+                                            <QrCode className="size-16" strokeWidth={1.5} />
+                                            <p className="mt-2 text-center text-xs font-semibold">
+                                                {table.has_active_qr
+                                                    ? "Artifact QR belum tersedia"
+                                                    : "QR belum dibuat"}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex flex-wrap gap-2 p-5 pb-0">
+                                    {table.qr_download_url && (
+                                        <Button
+                                            asChild
+                                            variant="outline"
+                                            size="sm"
+                                            className="min-h-10 rounded-full"
+                                        >
+                                            <a href={table.qr_download_url} download>
+                                                <Download aria-hidden="true" /> Unduh
+                                            </a>
+                                        </Button>
+                                    )}
+                                    {table.qr_print_url && (
+                                        <Button
+                                            asChild
+                                            variant="outline"
+                                            size="sm"
+                                            className="min-h-10 rounded-full"
+                                        >
+                                            <a
+                                                href={table.qr_print_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                            >
+                                                <Printer aria-hidden="true" /> Cetak
+                                            </a>
+                                        </Button>
+                                    )}
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        className="min-h-10 rounded-full"
+                                        disabled={processingTableId === table.id}
+                                        onClick={() => regenerateQr(table)}
+                                    >
+                                        <RefreshCw aria-hidden="true" />
+                                        {table.has_active_qr ? "Regenerasi" : "Buat QR"}
+                                    </Button>
+                                    {table.has_active_qr && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="min-h-10 rounded-full text-destructive hover:text-destructive"
+                                            disabled={processingTableId === table.id}
+                                            onClick={() => revokeQr(table)}
+                                        >
+                                            <Ban aria-hidden="true" /> Cabut
+                                        </Button>
+                                    )}
                                 </div>
                                 <div className="p-5 text-xs text-muted-foreground">
                                     {table.has_active_qr
-                                        ? "Unduh dan regenerasi QR akan tersedia bersama public QR flow."
-                                        : "Buat QR setelah public QR flow tersedia."}
+                                        ? "QR ini membuka menu outlet aktif dan terikat pada meja ini."
+                                        : "Buat QR untuk mengaktifkan akses menu meja."}
                                 </div>
                             </article>
                         ))
@@ -182,8 +287,7 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                     <DialogHeader>
                         <DialogTitle>Tambah meja</DialogTitle>
                         <DialogDescription>
-                            QR dibuat pada tahap public QR flow agar token hanya ditampilkan sekali
-                            dan tetap aman.
+                            QR aman akan dibuat otomatis dan dapat langsung diunduh atau dicetak.
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={createTable} className="grid gap-4">

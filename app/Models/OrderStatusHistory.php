@@ -2,25 +2,32 @@
 
 namespace App\Models;
 
+use App\Enums\OrderStatus;
 use App\Models\Concerns\BelongsToOutlet;
 use App\Models\Concerns\BelongsToTenant;
-use Carbon\CarbonImmutable;
-use Database\Factories\TableQrTokenFactory;
+use Database\Factories\OrderStatusHistoryFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * @property CarbonImmutable|null $expires_at
- * @property CarbonImmutable|null $revoked_at
+ * @property OrderStatus|null $from_status
+ * @property OrderStatus $to_status
  */
-#[Fillable(['tenant_id', 'outlet_id', 'table_id', 'token_hash', 'qr_path', 'last_used_at', 'expires_at', 'revoked_at'])]
-#[Hidden(['token_hash', 'qr_path'])]
-class TableQrToken extends Model
+#[Fillable([
+    'tenant_id',
+    'outlet_id',
+    'order_id',
+    'from_status',
+    'to_status',
+    'actor_type',
+    'actor_id',
+    'note',
+])]
+class OrderStatusHistory extends Model
 {
-    /** @use HasFactory<TableQrTokenFactory> */
+    /** @use HasFactory<OrderStatusHistoryFactory> */
     use BelongsToOutlet, BelongsToTenant, HasFactory;
 
     /** @return BelongsTo<Tenant, $this> */
@@ -35,18 +42,18 @@ class TableQrToken extends Model
         return $this->belongsTo(Outlet::class);
     }
 
-    /** @return BelongsTo<DiningTable, $this> */
-    public function table(): BelongsTo
+    /** @return BelongsTo<Order, $this> */
+    public function order(): BelongsTo
     {
-        return $this->belongsTo(DiningTable::class, 'table_id');
+        return $this->belongsTo(Order::class);
     }
 
     protected function casts(): array
     {
         return [
-            'last_used_at' => 'datetime',
-            'expires_at' => 'datetime',
-            'revoked_at' => 'datetime',
+            'from_status' => OrderStatus::class,
+            'to_status' => OrderStatus::class,
+            'actor_id' => 'integer',
         ];
     }
 }

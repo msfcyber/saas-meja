@@ -4,9 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Tables\StoreDiningTableRequest;
 use App\Models\DiningTable;
+use App\Services\TableQrCodeService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -33,28 +36,40 @@ class DiningTableController extends Controller
                 'zones' => DiningTable::query()->whereNotNull('zone')->distinct()->count('zone'),
             ],
             'zones' => DiningTable::query()->whereNotNull('zone')->distinct()->orderBy('zone')->pluck('zone')->values(),
-            'tables' => $tables->map(fn (DiningTable $table) => [
-                'id' => $table->id,
-                'name' => $table->name,
-                'code' => $table->code,
-                'zone' => $table->zone,
-                'capacity' => $table->capacity,
-                'is_active' => $table->is_active,
-                'has_active_qr' => $table->activeQrToken !== null,
-            ])->values(),
+            'tables' => $tables->map(function (DiningTable $table): array {
+                $qrToken = $table->activeQrToken;
+                $hasArtifact = $qrToken?->qr_path !== null;
+
+                return [
+                    'id' => $table->id,
+                    'name' => $table->name,
+                    'code' => $table->code,
+                    'zone' => $table->zone,
+                    'capacity' => $table->capacity,
+                    'is_active' => $table->is_active,
+                    'has_active_qr' => $qrToken !== null,
+                    'qr_url' => $hasArtifact ? Storage::disk('public')->url($qrToken->qr_path) : null,
+                    'qr_download_url' => $hasArtifact ? route('tables.qr.download', $table) : null,
+                    'qr_print_url' => $hasArtifact ? route('tables.qr.print', $table) : null,
+                ];
+            })->values(),
         ]);
     }
 
-    public function store(StoreDiningTableRequest $request, TenantContext $context): RedirectResponse
+    public function store(StoreDiningTableRequest $request, TenantContext $context, TableQrCodeService $qrCodes): RedirectResponse
     {
         $this->authorize('create', DiningTable::class);
 
-        DiningTable::query()->create([
-            ...$request->validated(),
-            'tenant_id' => $context->tenantId(),
-            'outlet_id' => $context->outletOrFail()->id,
-        ]);
+        DB::transaction(function () use ($request, $context, $qrCodes): void {
+            $table = DiningTable::query()->create([
+                ...$request->validated(),
+                'tenant_id' => $context->tenantId(),
+                'outlet_id' => $context->outletOrFail()->id,
+            ]);
 
-        return to_route('tables')->with('success', 'Meja berhasil ditambahkan. Buat QR setelah public QR flow tersedia.');
+            $qrCodes->issue($table);
+        }, attempts: 3);
+
+        return to_route('tables')->with('success', 'Meja berhasil ditambahkan dengan QR aktif.');
     }
 }

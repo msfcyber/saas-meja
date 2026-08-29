@@ -42,7 +42,9 @@ class DiningTable extends Model
     public function activeQrToken(): HasOne
     {
         return $this->hasOne(TableQrToken::class, 'table_id')
-            ->ofMany(['id' => 'max'], fn ($query) => $query->whereNull('revoked_at'));
+            ->ofMany(['id' => 'max'], fn ($query) => $query
+                ->whereNull('revoked_at')
+                ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now())));
     }
 
     protected function casts(): array

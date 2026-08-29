@@ -10,12 +10,12 @@ Terakhir diperbarui: 29 Agustus 2026
 - [x] Checkout demo: ringkasan item, identitas meja, nama opsional, metode pembayaran, pajak, dan total.
 - [x] Tracking order demo: status aktif, timeline, estimasi, detail item, dan akses struk.
 - [x] Dashboard owner: metrik outlet, grafik penjualan, target, dan order terkini.
-- [x] Live order board: filter status dan simulasi transisi status order.
+- [x] Live order board: filter status, detail item, dan transisi status order berbasis database.
 - [x] Pengelolaan produk: kategori, pencarian, harga, status tersedia/habis, dan aksi produk.
 - [x] Pengelolaan meja: zona, status, pratinjau QR, download, cetak, dan regenerasi.
 - [x] Branding dan lokalisasi halaman login/register utama.
 
-Frontend saat ini menggunakan data demo lokal. Tombol dan perubahan state yang belum terhubung backend sengaja berfungsi sebagai prototype interaktif.
+Beberapa halaman marketing dan fitur realtime/notifikasi masih menggunakan data demo atau fallback prototype sampai backend domainnya tersedia.
 
 ## Selesai - Backend Foundation: Data Layer
 
@@ -49,6 +49,7 @@ Frontend saat ini menggunakan data demo lokal. Tombol dan perubahan state yang b
 - [x] Dashboard server-rendered dengan identitas outlet, status penerimaan order, dan ringkasan katalog/meja aktual.
 - [x] Produk dan meja server-rendered, difilter oleh outlet aktif, dengan empty state yang jujur.
 - [x] Form Request untuk tambah produk/meja dan perubahan ketersediaan produk.
+- [x] Order board server-rendered dengan filter, pencarian, detail snapshot item, policy, dan aksi transisi status.
 - [x] Ownership data selalu berasal dari tenant/outlet context; policy resource kini memeriksa kedua scope.
 - [x] Feature test props Inertia, isolasi outlet, forged ownership, validasi kategori/kode, dan toggle ketersediaan.
 
@@ -60,6 +61,15 @@ Frontend saat ini menggunakan data demo lokal. Tombol dan perubahan state yang b
 - [x] Frontend mendukung input file, progress unggah, dan menampilkan URL gambar tanpa membocorkan storage path.
 - [x] Menambahkan `public/storage` link lokal serta feature test upload dan file invalid.
 
+## Selesai - Ordering Foundation: Guest Checkout
+
+- [x] Model, migration, factory, dan enum untuk order, payment, item, modifier snapshot, serta status history.
+- [x] Public checkout terikat QR/outlet/meja dengan validasi ulang produk, varian, modifier, ketersediaan, dan outlet.
+- [x] Server menghitung subtotal, pajak inclusive/exclusive, total, dan menyimpan snapshot harga tanpa mempercayai nominal browser.
+- [x] Idempotency key menghasilkan satu order/payment dan access token tracking yang aman.
+- [x] Menu public menampilkan varian/modifier aktif; cart browser tersimpan per token QR dan checkout/tracking memakai data server.
+- [x] State machine order terpusat, timeline mencatat actor/timestamp, dan status staff dibatasi oleh permission.
+
 ## Task Berikutnya - Backend Foundation
 
 - [x] Buat model, migration, factory, dan seeder untuk tenant, outlet, tenant user, role/permission, kategori, produk, varian, modifier, meja, dan QR token.
@@ -67,21 +77,23 @@ Frontend saat ini menggunakan data demo lokal. Tombol dan perubahan state yang b
 - [x] Buat onboarding owner: tenant, outlet pertama, pengaturan zona waktu, dan pajak.
 - [x] Hubungkan dashboard, produk, dan meja ke controller Inertia serta validasi Form Request.
 - [x] Implementasikan upload dan optimasi gambar produk ke storage tenant-aware.
-- [ ] Implementasikan QR token acak, validasi status tenant/outlet/meja, download/cetak, pencabutan, dan regenerasi.
+- [x] Implementasikan QR token acak, validasi status tenant/outlet/meja, menu publik, download/cetak, pencabutan, dan regenerasi.
+- Validasi subscription masih menunggu domain subscription; checkout publik dasar sudah tersedia dengan payment `pending`.
 
 ## Task Berikutnya - Ordering
 
-- [ ] Definisikan kontrak props TypeScript dan Resource Laravel untuk menu publik, cart validation, checkout, tracking, dan struk.
-- [ ] Implementasikan cart browser yang terikat outlet/meja serta validasi ulang server-side.
-- [ ] Buat order, order item, modifier, snapshot harga/pajak, nomor order, access token, dan idempotency key dalam transaction.
-- [ ] Terapkan state machine order dan catat setiap transisi beserta actor dan timestamp.
+- [x] Definisikan kontrak props TypeScript dan Resource Laravel untuk menu publik, checkout, dan tracking dasar.
+- [x] Implementasikan cart browser yang terikat token QR serta validasi ulang server-side.
+- [x] Buat order, payment pending, order item, modifier, snapshot harga/pajak, nomor order, access token, dan idempotency key dalam transaction.
+- [x] Terapkan state machine order dan catat setiap transisi beserta actor dan timestamp.
 - [ ] Hubungkan live order board dan customer tracking melalui Laravel Reverb dengan reconnect/fallback polling.
 - [ ] Tambahkan notifikasi visual/audio order baru dengan preferensi staf.
 
 ## Task Berikutnya - Payment dan SaaS
 
 - [ ] Buat payment adapter dan integrasi sandbox gateway Indonesia.
-- [ ] Implementasikan webhook signature verification, idempotency event, nominal verification, expiry, retry, dan reconciliation.
+- [x] Implementasikan kontrak webhook generik dengan signature bertimestamp, idempotency event, nominal/currency verification, expiry, dan proteksi downgrade.
+- [ ] Tambahkan adapter vendor, retry, dan reconciliation gateway.
 - [ ] Pastikan order hanya masuk produksi setelah payment terverifikasi `paid`.
 - [ ] Buat struk digital dari snapshot order dan dukungan print/download.
 - [ ] Implementasikan plan, trial, subscription, invoice SaaS, entitlement, dan limit outlet/meja/staf.
@@ -91,6 +103,8 @@ Frontend saat ini menggunakan data demo lokal. Tombol dan perubahan state yang b
 
 - [x] Foundation test untuk relasi model, constraint lintas tenant, permission owner, dan seeder idempotent.
 - [x] Feature test tenant isolation dan authorization.
-- [ ] Feature test QR invalid/revoked, checkout idempotency, webhook duplicate/out-of-order, dan transisi status ilegal.
+- [x] Feature test QR invalid/revoked/expired, rotasi token, artifact, status resource, download/cetak, dan isolasi katalog.
+- [x] Feature test checkout idempotency dan isolasi token order.
+- [x] Feature test webhook duplicate/out-of-order dan transisi status ilegal.
 - [ ] Browser test alur scan QR sampai struk pada viewport 360 px, tablet, dan desktop.
 - [ ] Audit aksesibilitas, Core Web Vitals, optimasi gambar, empty/error/loading state, dan koneksi lambat.
