@@ -141,8 +141,16 @@ export default function CreateOnboarding({ timezones }: Props) {
                                     autoFocus
                                     required
                                     aria-invalid={Boolean(form.errors.business_name)}
+                                    aria-describedby={
+                                        form.errors.business_name
+                                            ? "business-name-error"
+                                            : undefined
+                                    }
                                 />
-                                <InputError message={form.errors.business_name} />
+                                <InputError
+                                    id="business-name-error"
+                                    message={form.errors.business_name}
+                                />
                             </div>
                         </section>
                     )}
@@ -168,8 +176,16 @@ export default function CreateOnboarding({ timezones }: Props) {
                                         autoComplete="organization"
                                         required
                                         aria-invalid={Boolean(form.errors.outlet_name)}
+                                        aria-describedby={
+                                            form.errors.outlet_name
+                                                ? "outlet-name-error"
+                                                : undefined
+                                        }
                                     />
-                                    <InputError message={form.errors.outlet_name} />
+                                    <InputError
+                                        id="outlet-name-error"
+                                        message={form.errors.outlet_name}
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="address">
@@ -187,8 +203,11 @@ export default function CreateOnboarding({ timezones }: Props) {
                                         placeholder="Jl. Sore Hari No. 8"
                                         autoComplete="street-address"
                                         aria-invalid={Boolean(form.errors.address)}
+                                        aria-describedby={
+                                            form.errors.address ? "address-error" : undefined
+                                        }
                                     />
-                                    <InputError message={form.errors.address} />
+                                    <InputError id="address-error" message={form.errors.address} />
                                 </div>
                                 <div className="grid gap-2 sm:grid-cols-2 sm:gap-5">
                                     <div className="grid gap-2">
@@ -208,8 +227,11 @@ export default function CreateOnboarding({ timezones }: Props) {
                                             autoComplete="tel"
                                             inputMode="tel"
                                             aria-invalid={Boolean(form.errors.phone)}
+                                            aria-describedby={
+                                                form.errors.phone ? "phone-error" : undefined
+                                            }
                                         />
-                                        <InputError message={form.errors.phone} />
+                                        <InputError id="phone-error" message={form.errors.phone} />
                                     </div>
                                     <div className="grid gap-2">
                                         <Label htmlFor="timezone">Zona waktu</Label>
@@ -220,6 +242,10 @@ export default function CreateOnboarding({ timezones }: Props) {
                                                 form.setData("timezone", event.target.value)
                                             }
                                             className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+                                            aria-invalid={Boolean(form.errors.timezone)}
+                                            aria-describedby={
+                                                form.errors.timezone ? "timezone-error" : undefined
+                                            }
                                         >
                                             {timezones.map((timezone) => (
                                                 <option key={timezone.value} value={timezone.value}>
@@ -227,7 +253,10 @@ export default function CreateOnboarding({ timezones }: Props) {
                                                 </option>
                                             ))}
                                         </select>
-                                        <InputError message={form.errors.timezone} />
+                                        <InputError
+                                            id="timezone-error"
+                                            message={form.errors.timezone}
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -280,8 +309,16 @@ export default function CreateOnboarding({ timezones }: Props) {
                                                 placeholder="Pajak Restoran"
                                                 required
                                                 aria-invalid={Boolean(form.errors.tax_name)}
+                                                aria-describedby={
+                                                    form.errors.tax_name
+                                                        ? "tax-name-error"
+                                                        : undefined
+                                                }
                                             />
-                                            <InputError message={form.errors.tax_name} />
+                                            <InputError
+                                                id="tax-name-error"
+                                                message={form.errors.tax_name}
+                                            />
                                         </div>
                                         <div className="grid gap-2">
                                             <Label htmlFor="tax_rate">Tarif pajak (%)</Label>
@@ -297,8 +334,16 @@ export default function CreateOnboarding({ timezones }: Props) {
                                                 }
                                                 required
                                                 aria-invalid={Boolean(form.errors.tax_rate)}
+                                                aria-describedby={
+                                                    form.errors.tax_rate
+                                                        ? "tax-rate-error"
+                                                        : undefined
+                                                }
                                             />
-                                            <InputError message={form.errors.tax_rate} />
+                                            <InputError
+                                                id="tax-rate-error"
+                                                message={form.errors.tax_rate}
+                                            />
                                         </div>
                                         <div className="flex items-start gap-3 sm:col-span-2">
                                             <Checkbox

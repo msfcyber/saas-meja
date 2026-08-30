@@ -146,6 +146,7 @@ export default function Products({ categories, filters, products, summary }: Pro
                             <button
                                 type="button"
                                 onClick={() => applyFilters(null)}
+                                aria-pressed={filters.category === null}
                                 className={`min-h-10 shrink-0 rounded-full px-4 text-xs font-bold ${filters.category === null ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
                             >
                                 Semua
@@ -155,6 +156,7 @@ export default function Products({ categories, filters, products, summary }: Pro
                                     key={category.id}
                                     type="button"
                                     onClick={() => applyFilters(category.id)}
+                                    aria-pressed={filters.category === category.id}
                                     className={`min-h-10 shrink-0 rounded-full px-4 text-xs font-bold ${filters.category === category.id ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
                                 >
                                     {category.name}
@@ -215,7 +217,10 @@ export default function Products({ categories, filters, products, summary }: Pro
                                         )}
                                         {product.is_featured && (
                                             <span className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-amber-400 text-amber-950 ring-2 ring-card">
-                                                <Star className="size-3 fill-current" />
+                                                <Star
+                                                    className="size-3 fill-current"
+                                                    aria-hidden="true"
+                                                />
                                                 <span className="sr-only">Produk favorit</span>
                                             </span>
                                         )}
@@ -244,7 +249,8 @@ export default function Products({ categories, filters, products, summary }: Pro
                                             )
                                         }
                                         aria-pressed={product.is_available}
-                                        className="hidden min-h-10 items-center gap-2 rounded-full px-3 text-xs font-bold sm:flex"
+                                        aria-label={`${product.is_available ? "Tandai habis" : "Tandai tersedia"}: ${product.name}`}
+                                        className="col-span-full flex min-h-10 items-center gap-2 rounded-full px-3 text-xs font-bold sm:col-auto sm:flex"
                                     >
                                         <span
                                             className={`relative h-6 w-10 rounded-full transition-colors ${product.is_available ? "bg-emerald-600" : "bg-muted-foreground/30"}`}
@@ -275,17 +281,25 @@ export default function Products({ categories, filters, products, summary }: Pro
                             <Label htmlFor="product-name">Nama produk</Label>
                             <Input
                                 id="product-name"
+                                aria-invalid={Boolean(form.errors.name)}
+                                aria-describedby={
+                                    form.errors.name ? "product-name-error" : undefined
+                                }
                                 value={form.data.name}
                                 onChange={(event) => form.setData("name", event.target.value)}
                                 autoFocus
                                 required
                             />
-                            <InputError message={form.errors.name} />
+                            <InputError id="product-name-error" message={form.errors.name} />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="product-category">Kategori</Label>
                             <select
                                 id="product-category"
+                                aria-invalid={Boolean(form.errors.category_id)}
+                                aria-describedby={
+                                    form.errors.category_id ? "product-category-error" : undefined
+                                }
                                 value={form.data.category_id}
                                 onChange={(event) =>
                                     form.setData("category_id", event.target.value)
@@ -301,19 +315,26 @@ export default function Products({ categories, filters, products, summary }: Pro
                                         </option>
                                     ))}
                             </select>
-                            <InputError message={form.errors.category_id} />
+                            <InputError
+                                id="product-category-error"
+                                message={form.errors.category_id}
+                            />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="product-price">Harga (Rp)</Label>
                             <Input
                                 id="product-price"
+                                aria-invalid={Boolean(form.errors.base_price)}
+                                aria-describedby={
+                                    form.errors.base_price ? "product-price-error" : undefined
+                                }
                                 type="number"
                                 min="0"
                                 value={form.data.base_price}
                                 onChange={(event) => form.setData("base_price", event.target.value)}
                                 required
                             />
-                            <InputError message={form.errors.base_price} />
+                            <InputError id="product-price-error" message={form.errors.base_price} />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="product-description">
@@ -324,12 +345,21 @@ export default function Products({ categories, filters, products, summary }: Pro
                             </Label>
                             <Input
                                 id="product-description"
+                                aria-invalid={Boolean(form.errors.description)}
+                                aria-describedby={
+                                    form.errors.description
+                                        ? "product-description-error"
+                                        : undefined
+                                }
                                 value={form.data.description}
                                 onChange={(event) =>
                                     form.setData("description", event.target.value)
                                 }
                             />
-                            <InputError message={form.errors.description} />
+                            <InputError
+                                id="product-description-error"
+                                message={form.errors.description}
+                            />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="product-image">
@@ -340,6 +370,10 @@ export default function Products({ categories, filters, products, summary }: Pro
                             </Label>
                             <Input
                                 id="product-image"
+                                aria-invalid={Boolean(form.errors.image)}
+                                aria-describedby={
+                                    form.errors.image ? "product-image-error" : undefined
+                                }
                                 type="file"
                                 accept="image/jpeg,image/png,image/webp"
                                 onChange={(event) =>
@@ -350,7 +384,7 @@ export default function Products({ categories, filters, products, summary }: Pro
                                 JPG, PNG, atau WebP, maksimal 5 MB. Gambar akan dioptimalkan
                                 otomatis.
                             </p>
-                            <InputError message={form.errors.image} />
+                            <InputError id="product-image-error" message={form.errors.image} />
                             {form.progress && (
                                 <p className="text-xs font-medium text-primary">
                                     Mengunggah {form.progress.percentage}%

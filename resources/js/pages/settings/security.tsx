@@ -1,16 +1,16 @@
-import { Form, Head } from '@inertiajs/react';
-import { useRef } from 'react';
-import SecurityController from '@/actions/App/Http/Controllers/Settings/SecurityController';
-import Heading from '@/components/heading';
-import InputError from '@/components/input-error';
-import PasswordInput from '@/components/password-input';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { edit } from '@/routes/security';
-import type { Props as ManagePasskeysProps } from '@/components/manage-passkeys';
-import ManagePasskeys from '@/components/manage-passkeys';
-import type { Props as ManageTwoFactorProps } from '@/components/manage-two-factor';
-import ManageTwoFactor from '@/components/manage-two-factor';
+import { Form, Head } from "@inertiajs/react";
+import { useRef } from "react";
+import SecurityController from "@/actions/App/Http/Controllers/Settings/SecurityController";
+import Heading from "@/components/heading";
+import InputError from "@/components/input-error";
+import PasswordInput from "@/components/password-input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { edit } from "@/routes/security";
+import type { Props as ManagePasskeysProps } from "@/components/manage-passkeys";
+import ManagePasskeys from "@/components/manage-passkeys";
+import type { Props as ManageTwoFactorProps } from "@/components/manage-two-factor";
+import ManageTwoFactor from "@/components/manage-two-factor";
 
 // oxfmt-ignore
 type Props = {
@@ -40,11 +40,7 @@ export default function Security(props: Props) {
                     options={{
                         preserveScroll: true,
                     }}
-                    resetOnError={[
-                        'password',
-                        'password_confirmation',
-                        'current_password',
-                    ]}
+                    resetOnError={["password", "password_confirmation", "current_password"]}
                     resetOnSuccess
                     onError={(errors) => {
                         if (errors.password) {
@@ -60,9 +56,7 @@ export default function Security(props: Props) {
                     {({ errors, processing }) => (
                         <>
                             <div className="grid gap-2">
-                                <Label htmlFor="current_password">
-                                    Current password
-                                </Label>
+                                <Label htmlFor="current_password">Current password</Label>
 
                                 <PasswordInput
                                     id="current_password"
@@ -71,9 +65,18 @@ export default function Security(props: Props) {
                                     className="mt-1 block w-full"
                                     autoComplete="current-password"
                                     placeholder="Current password"
+                                    aria-invalid={Boolean(errors.current_password)}
+                                    aria-describedby={
+                                        errors.current_password
+                                            ? "security-current-password-error"
+                                            : undefined
+                                    }
                                 />
 
-                                <InputError message={errors.current_password} />
+                                <InputError
+                                    id="security-current-password-error"
+                                    message={errors.current_password}
+                                />
                             </div>
 
                             <div className="grid gap-2">
@@ -87,15 +90,20 @@ export default function Security(props: Props) {
                                     autoComplete="new-password"
                                     placeholder="New password"
                                     passwordrules={props.passwordRules}
+                                    aria-invalid={Boolean(errors.password)}
+                                    aria-describedby={
+                                        errors.password ? "security-password-error" : undefined
+                                    }
                                 />
 
-                                <InputError message={errors.password} />
+                                <InputError
+                                    id="security-password-error"
+                                    message={errors.password}
+                                />
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="password_confirmation">
-                                    Confirm password
-                                </Label>
+                                <Label htmlFor="password_confirmation">Confirm password</Label>
 
                                 <PasswordInput
                                     id="password_confirmation"
@@ -104,18 +112,22 @@ export default function Security(props: Props) {
                                     autoComplete="new-password"
                                     placeholder="Confirm password"
                                     passwordrules={props.passwordRules}
+                                    aria-invalid={Boolean(errors.password_confirmation)}
+                                    aria-describedby={
+                                        errors.password_confirmation
+                                            ? "security-password-confirmation-error"
+                                            : undefined
+                                    }
                                 />
 
                                 <InputError
+                                    id="security-password-confirmation-error"
                                     message={errors.password_confirmation}
                                 />
                             </div>
 
                             <div className="flex items-center gap-4">
-                                <Button
-                                    disabled={processing}
-                                    data-test="update-password-button"
-                                >
+                                <Button disabled={processing} data-test="update-password-button">
                                     Save
                                 </Button>
                             </div>
@@ -130,10 +142,7 @@ export default function Security(props: Props) {
                 twoFactorEnabled={props.twoFactorEnabled}
             />
 
-            <ManagePasskeys
-                canManagePasskeys={props.canManagePasskeys}
-                passkeys={props.passkeys}
-            />
+            <ManagePasskeys canManagePasskeys={props.canManagePasskeys} passkeys={props.passkeys} />
         </>
     );
 }
@@ -141,7 +150,7 @@ export default function Security(props: Props) {
 Security.layout = {
     breadcrumbs: [
         {
-            title: 'Security settings',
+            title: "Security settings",
             href: edit(),
         },
     ],

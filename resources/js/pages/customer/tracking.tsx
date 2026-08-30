@@ -9,7 +9,7 @@ import {
     ShoppingBag,
     UtensilsCrossed,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CustomerHeader } from "@/components/customer-header";
 import { formatCurrency, menuItems } from "@/data/demo";
 import { useRealtime } from "@/hooks/use-realtime";
@@ -154,10 +154,23 @@ export default function Tracking({ access, order, realtime }: Props) {
     const [liveOrder, setLiveOrder] = useState<CustomerOrder | null>(order ?? null);
     const [paymentStarting, setPaymentStarting] = useState(false);
     const [paymentError, setPaymentError] = useState<string | null>(null);
+    const [statusAnnouncement, setStatusAnnouncement] = useState("");
+    const announcedStatus = useRef<string | null>(order?.status ?? null);
 
     useEffect(() => {
         setLiveOrder(order ?? null);
     }, [order]);
+
+    useEffect(() => {
+        if (!liveOrder || liveOrder.status === announcedStatus.current) {
+            return;
+        }
+
+        announcedStatus.current = liveOrder.status;
+        setStatusAnnouncement(
+            `Status pesanan #${liveOrder.number}: ${statusCopy[liveOrder.status]?.label ?? liveOrder.status_label}.`,
+        );
+    }, [liveOrder]);
 
     async function refreshOrder(): Promise<void> {
         if (!realtime?.poll_url) {
@@ -322,6 +335,9 @@ export default function Tracking({ access, order, realtime }: Props) {
                             </div>
                         </div>
                     </section>
+                    <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+                        {statusAnnouncement}
+                    </div>
 
                     <section className="mt-6 rounded-[1.5rem] border bg-card p-6 sm:p-8">
                         <h2 className="font-display text-2xl font-bold">Perjalanan pesanan</h2>
@@ -334,6 +350,7 @@ export default function Tracking({ access, order, realtime }: Props) {
                                 return (
                                     <li
                                         key={step.status}
+                                        aria-current={active ? "step" : undefined}
                                         className="relative flex gap-4 pb-8 last:pb-0"
                                     >
                                         {index < statusFlow.length - 1 && (
@@ -355,6 +372,13 @@ export default function Tracking({ access, order, realtime }: Props) {
                                                     className={`text-sm font-bold ${!done ? "text-muted-foreground" : ""}`}
                                                 >
                                                     {step.label}
+                                                    <span className="sr-only">
+                                                        {active
+                                                            ? ": Sedang berlangsung"
+                                                            : done
+                                                              ? ": Selesai"
+                                                              : ": Belum dimulai"}
+                                                    </span>
                                                 </p>
                                                 {active && (
                                                     <p className="mt-1 text-xs text-primary">
@@ -454,7 +478,10 @@ export default function Tracking({ access, order, realtime }: Props) {
                                 <ChevronRight className="size-4" aria-hidden="true" />
                             </button>
                             {paymentError && (
-                                <p className="mt-3 text-sm font-semibold text-destructive" role="alert">
+                                <p
+                                    className="mt-3 text-sm font-semibold text-destructive"
+                                    role="alert"
+                                >
                                     {paymentError}
                                 </p>
                             )}
@@ -470,8 +497,8 @@ export default function Tracking({ access, order, realtime }: Props) {
                                 className="flex min-h-12 items-center justify-between rounded-full border bg-card px-5 text-sm font-bold hover:bg-secondary"
                             >
                                 <span className="flex items-center gap-2">
-                                    <ReceiptText className="size-4" aria-hidden="true" /> Lihat struk
-                                    digital
+                                    <ReceiptText className="size-4" aria-hidden="true" /> Lihat
+                                    struk digital
                                 </span>
                                 <ChevronRight className="size-4" aria-hidden="true" />
                             </a>
@@ -482,8 +509,8 @@ export default function Tracking({ access, order, realtime }: Props) {
                                 className="flex min-h-12 items-center justify-between rounded-full border bg-card px-5 text-sm font-bold opacity-60"
                             >
                                 <span className="flex items-center gap-2">
-                                    <ReceiptText className="size-4" aria-hidden="true" /> Lihat struk
-                                    digital
+                                    <ReceiptText className="size-4" aria-hidden="true" /> Lihat
+                                    struk digital
                                 </span>
                                 <ChevronRight className="size-4" aria-hidden="true" />
                             </button>
@@ -495,7 +522,8 @@ export default function Tracking({ access, order, realtime }: Props) {
                                 rel="noreferrer"
                                 className="flex min-h-12 items-center justify-center gap-2 rounded-full border bg-card px-5 text-sm font-bold hover:bg-secondary"
                             >
-                                <Download className="size-4" aria-hidden="true" /> Cetak / simpan struk
+                                <Download className="size-4" aria-hidden="true" /> Cetak / simpan
+                                struk
                             </a>
                         ) : (
                             <button
@@ -503,7 +531,8 @@ export default function Tracking({ access, order, realtime }: Props) {
                                 disabled
                                 className="flex min-h-12 items-center justify-center gap-2 rounded-full border bg-card px-5 text-sm font-bold opacity-60"
                             >
-                                <Download className="size-4" aria-hidden="true" /> Simpan detail pesanan
+                                <Download className="size-4" aria-hidden="true" /> Simpan detail
+                                pesanan
                             </button>
                         )}
                     </div>

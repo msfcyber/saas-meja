@@ -3,11 +3,13 @@
 use App\Enums\PaymentStatus;
 use App\Enums\SubscriptionStatus;
 use App\Models\Payment;
+use App\Models\PaymentEvent;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\PaymentReconciliationService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -83,6 +85,100 @@ Artisan::command('subscriptions:expire', function (): int {
 Schedule::command('subscriptions:expire')
     ->hourly()
     ->withoutOverlapping();
+
+Artisan::command('ops:health {--json : Output machine-readable JSON}', function (): int {
+    $checks = [];
+    $degraded = false;
+    $addCheck = function (string $name, string $status, string $value) use (&$checks, &$degraded): void {
+        if (! in_array($status, ['ok', 'skipped'], true)) {
+            $degraded = true;
+        }
+
+        $checks[] = [
+            'check' => $name,
+            'status' => $status,
+            'value' => $value,
+        ];
+    };
+
+    try {
+        DB::connection()->getPdo();
+        $addCheck('database', 'ok', 'reachable');
+    } catch (Throwable $exception) {
+        $addCheck('database', 'fail', $exception::class);
+    }
+
+    $queueDriver = (string) config('queue.default');
+
+    if ($queueDriver === 'database') {
+        $queueTable = (string) config('queue.connections.database.table', 'jobs');
+        $queueThreshold = (int) config('observability.queue_depth_threshold', 100);
+
+        try {
+            $depth = DB::table($queueTable)->count();
+            $addCheck(
+                'queue_depth',
+                $depth > $queueThreshold ? 'warning' : 'ok',
+                "{$depth} (threshold {$queueThreshold})",
+            );
+        } catch (Throwable $exception) {
+            $addCheck('queue_depth', 'fail', $exception::class);
+        }
+    } else {
+        $addCheck('queue_depth', 'skipped', $queueDriver);
+    }
+
+    $failedDriver = (string) config('queue.failed.driver');
+
+    if (str_starts_with($failedDriver, 'database')) {
+        $failedTable = (string) config('queue.failed.table', 'failed_jobs');
+        $failedThreshold = (int) config('observability.failed_jobs_threshold', 0);
+
+        try {
+            $failedJobs = DB::table($failedTable)->count();
+            $addCheck(
+                'failed_jobs',
+                $failedJobs > $failedThreshold ? 'warning' : 'ok',
+                "{$failedJobs} (threshold {$failedThreshold})",
+            );
+        } catch (Throwable $exception) {
+            $addCheck('failed_jobs', 'fail', $exception::class);
+        }
+    } else {
+        $addCheck('failed_jobs', 'skipped', $failedDriver);
+    }
+
+    $staleMinutes = (int) config('observability.stale_payment_event_minutes', 15);
+
+    try {
+        $staleEvents = PaymentEvent::withoutGlobalScopes()
+            ->whereNull('processed_at')
+            ->where('occurred_at', '<', now()->subMinutes($staleMinutes))
+            ->count();
+        $addCheck(
+            'stale_payment_events',
+            $staleEvents > 0 ? 'warning' : 'ok',
+            "{$staleEvents} (older than {$staleMinutes} minutes)",
+        );
+    } catch (Throwable $exception) {
+        $addCheck('stale_payment_events', 'fail', $exception::class);
+    }
+
+    $summary = [
+        'status' => $degraded ? 'degraded' : 'ok',
+        'checked_at' => now()->toIso8601String(),
+        'checks' => $checks,
+    ];
+
+    if ($this->option('json')) {
+        $this->line(json_encode($summary, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    } else {
+        $this->table(['Check', 'Status', 'Value'], $checks);
+        $this->line('Health status: '.$summary['status']);
+    }
+
+    return $degraded ? 1 : 0;
+})->purpose('Check application dependencies and operational thresholds');
 
 Artisan::command('platform:grant {email}', function (): int {
     $user = User::query()->where('email', $this->argument('email'))->first();

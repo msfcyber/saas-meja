@@ -154,12 +154,19 @@ export default function Subscription({ subscription, invoices }: Props) {
                                 type="submit"
                                 disabled={form.processing || plan === null}
                                 className="min-h-12 rounded-full bg-[#fffaf0] px-5 font-bold text-[#293025] hover:bg-white"
+                                aria-describedby={
+                                    paymentError ? "subscription-payment-error" : undefined
+                                }
                             >
                                 {form.processing && <Spinner />}
                                 <CreditCard aria-hidden="true" />
                                 {trialing ? "Aktifkan plan berbayar" : "Bayar / perpanjang"}
                             </Button>
-                            <InputError className="mt-3 text-[#ffc7b0]" message={paymentError} />
+                            <InputError
+                                id="subscription-payment-error"
+                                className="mt-3 text-[#ffc7b0]"
+                                message={paymentError}
+                            />
                         </form>
                     </section>
 
@@ -193,6 +200,15 @@ export default function Subscription({ subscription, invoices }: Props) {
                                         </div>
                                         <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
                                             <div
+                                                {...(limit === null
+                                                    ? {}
+                                                    : {
+                                                          role: "progressbar",
+                                                          "aria-label": labels[key] ?? key,
+                                                          "aria-valuemin": 0,
+                                                          "aria-valuemax": limit,
+                                                          "aria-valuenow": Math.min(value, limit),
+                                                      })}
                                                 className="h-full rounded-full bg-primary transition-[width]"
                                                 style={{ width: `${percentage}%` }}
                                             />

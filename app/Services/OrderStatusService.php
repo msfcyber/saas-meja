@@ -6,10 +6,13 @@ use App\Enums\OrderStatus;
 use App\Events\OrderStatusUpdated;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
+use Carbon\CarbonImmutable;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 final class OrderStatusService
 {
+    public function __construct(private readonly TelemetryService $telemetry) {}
+
     public function transition(
         Order $order,
         OrderStatus $to,
@@ -23,6 +26,8 @@ final class OrderStatusService
         if ($from === $to) {
             return false;
         }
+
+        $startedAt = hrtime(true);
 
         if ($to === OrderStatus::Paid && $actorType !== 'payment_webhook') {
             throw new ConflictHttpException('Order hanya dapat menjadi paid setelah payment terverifikasi.');
@@ -51,6 +56,22 @@ final class OrderStatusService
             (int) $order->outlet_id,
             (string) $order->access_token_hash,
         );
+
+        $this->telemetry->recordDuration('order.status_changed', $startedAt, [
+            'from_status' => $from->value,
+            'to_status' => $to->value,
+            'actor_type' => $actorType,
+        ]);
+
+        $createdAt = $order->getAttribute('created_at');
+
+        if ($to === OrderStatus::Paid && $createdAt !== null) {
+            $this->telemetry->record('order.payment_latency', [
+                'latency_ms' => max(0, (int) CarbonImmutable::parse((string) $createdAt)->diffInMilliseconds(now())),
+                'from_status' => $from->value,
+                'to_status' => $to->value,
+            ]);
+        }
 
         return true;
     }

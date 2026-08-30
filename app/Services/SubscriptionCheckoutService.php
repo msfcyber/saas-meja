@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\SubscriptionStatus;
 use App\Models\Tenant;
+use Throwable;
 
 final class SubscriptionCheckoutService
 {
@@ -11,6 +12,7 @@ final class SubscriptionCheckoutService
         private readonly SubscriptionEntitlementService $entitlements,
         private readonly SaasInvoiceService $invoices,
         private readonly SaasPaymentGatewayManager $gateways,
+        private readonly TelemetryService $telemetry,
     ) {}
 
     /**
@@ -18,19 +20,34 @@ final class SubscriptionCheckoutService
      */
     public function start(Tenant $tenant, string $finishUrl): array
     {
-        $subscription = $this->entitlements->current($tenant);
+        $startedAt = hrtime(true);
 
-        if ($subscription === null || $subscription->status === SubscriptionStatus::Cancelled) {
-            throw new PaymentGatewayException('Subscription tenant belum tersedia.');
+        try {
+            $subscription = $this->entitlements->current($tenant);
+
+            if ($subscription === null || $subscription->status === SubscriptionStatus::Cancelled) {
+                throw new PaymentGatewayException('Subscription tenant belum tersedia.');
+            }
+
+            $invoice = $this->invoices->pendingFor($subscription);
+            $provider = (string) $invoice->provider;
+            $checkout = $this->gateways->for($provider)
+                ->createCheckout($invoice, $subscription, $finishUrl);
+
+            $this->telemetry->recordDuration('subscription.checkout.completed', $startedAt, [
+                'provider' => $provider,
+            ]);
+
+            return [
+                'invoice_id' => (int) $invoice->getKey(),
+                ...$checkout,
+            ];
+        } catch (Throwable $exception) {
+            $this->telemetry->recordDuration('subscription.checkout.failed', $startedAt, [
+                'exception' => $exception::class,
+            ], 'warning');
+
+            throw $exception;
         }
-
-        $invoice = $this->invoices->pendingFor($subscription);
-        $checkout = $this->gateways->for((string) $invoice->provider)
-            ->createCheckout($invoice, $subscription, $finishUrl);
-
-        return [
-            'invoice_id' => (int) $invoice->getKey(),
-            ...$checkout,
-        ];
     }
 }

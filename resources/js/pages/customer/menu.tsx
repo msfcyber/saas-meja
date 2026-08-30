@@ -652,46 +652,16 @@ export default function Menu({
                                     <>
                                         <div className="mt-6 rounded-2xl border p-4">
                                             <p className="text-sm font-bold">Tingkat kepedasan</p>
-                                            <div className="mt-3 grid grid-cols-3 gap-2">
-                                                {["Tidak pedas", "Sedang", "Pedas"].map(
-                                                    (level, index) => (
-                                                        <button
-                                                            key={level}
-                                                            type="button"
-                                                            className={`min-h-11 rounded-xl border px-2 text-xs font-bold ${index === 1 ? "border-primary bg-primary/8 text-primary" : "hover:bg-secondary"}`}
-                                                        >
-                                                            {level}
-                                                        </button>
-                                                    ),
-                                                )}
-                                            </div>
+                                            <p className="mt-3 rounded-xl bg-primary/8 px-3 py-2 text-sm font-semibold text-primary">
+                                                Sedang
+                                            </p>
                                         </div>
-                                        <label className="mt-4 block text-sm font-bold">
-                                            Catatan untuk dapur
-                                            <textarea
-                                                className="mt-2 min-h-20 w-full resize-none rounded-2xl border bg-background p-3 text-sm font-normal outline-none focus:ring-2 focus:ring-ring"
-                                                placeholder="Contoh: tanpa bawang..."
-                                            />
-                                        </label>
                                         <div className="mt-6 flex gap-3">
-                                            <div className="flex min-h-12 items-center rounded-full border bg-card p-1">
-                                                <button
-                                                    type="button"
-                                                    className="flex size-10 items-center justify-center rounded-full hover:bg-secondary"
-                                                    aria-label="Kurangi jumlah"
-                                                >
-                                                    <Minus className="size-4" />
-                                                </button>
-                                                <span className="w-8 text-center text-sm font-bold">
-                                                    1
+                                            <div className="flex min-h-12 items-center rounded-full border bg-card px-4 text-sm font-bold">
+                                                <span className="sr-only">
+                                                    Jumlah produk demo:{" "}
                                                 </span>
-                                                <button
-                                                    type="button"
-                                                    className="flex size-10 items-center justify-center rounded-full hover:bg-secondary"
-                                                    aria-label="Tambah jumlah"
-                                                >
-                                                    <Plus className="size-4" />
-                                                </button>
+                                                1
                                             </div>
                                             <button
                                                 type="button"

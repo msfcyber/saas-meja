@@ -30,7 +30,10 @@ use Throwable;
 
 final class PublicOrderService
 {
-    public function __construct(private readonly OrderStatusService $statuses) {}
+    public function __construct(
+        private readonly OrderStatusService $statuses,
+        private readonly TelemetryService $telemetry,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data
@@ -42,147 +45,165 @@ final class PublicOrderService
         $tenantId = (int) $access->tenant->getKey();
         $outletId = (int) $access->outlet->getKey();
         $idempotencyKey = (string) $data['idempotency_key'];
+        $startedAt = hrtime(true);
 
-        return DB::transaction(function () use ($access, $data, $fingerprint, $tenantId, $outletId, $idempotencyKey): array {
-            $this->assertFreshAccess($access);
+        try {
+            $result = DB::transaction(function () use ($access, $data, $fingerprint, $tenantId, $outletId, $idempotencyKey): array {
+                $this->assertFreshAccess($access);
 
-            $existing = Order::withoutGlobalScopes()
-                ->where('tenant_id', $tenantId)
-                ->where('outlet_id', $outletId)
-                ->where('idempotency_key', $idempotencyKey)
-                ->lockForUpdate()
-                ->first();
+                $existing = Order::withoutGlobalScopes()
+                    ->where('tenant_id', $tenantId)
+                    ->where('outlet_id', $outletId)
+                    ->where('idempotency_key', $idempotencyKey)
+                    ->lockForUpdate()
+                    ->first();
 
-            if ($existing !== null) {
-                if ($existing->idempotency_fingerprint !== $fingerprint) {
-                    throw new ConflictHttpException('Idempotency key sudah digunakan untuk checkout yang berbeda.');
+                if ($existing !== null) {
+                    if ($existing->idempotency_fingerprint !== $fingerprint) {
+                        throw new ConflictHttpException('Idempotency key sudah digunakan untuk checkout yang berbeda.');
+                    }
+
+                    return [
+                        'order' => $this->loadOrder($existing),
+                        'access_token' => $this->decryptAccessToken($existing),
+                        'created' => false,
+                    ];
                 }
 
-                return [
-                    'order' => $this->loadOrder($existing),
-                    'access_token' => $this->decryptAccessToken($existing),
-                    'created' => false,
-                ];
-            }
+                $items = is_array($data['items'] ?? null) ? array_values($data['items']) : [];
+                $lines = [];
 
-            $items = is_array($data['items'] ?? null) ? array_values($data['items']) : [];
-            $lines = [];
+                foreach ($items as $index => $item) {
+                    if (! is_array($item)) {
+                        $this->invalid("items.{$index}", 'Item pesanan tidak valid.');
+                    }
 
-            foreach ($items as $index => $item) {
-                if (! is_array($item)) {
-                    $this->invalid("items.{$index}", 'Item pesanan tidak valid.');
+                    $lines[] = $this->priceItem($item, (int) $index, $tenantId, $outletId);
                 }
 
-                $lines[] = $this->priceItem($item, (int) $index, $tenantId, $outletId);
-            }
+                $outlet = Outlet::withoutGlobalScopes()
+                    ->whereKey($outletId)
+                    ->where('tenant_id', $tenantId)
+                    ->firstOrFail();
+                $taxSetting = TaxSetting::withoutGlobalScopes()
+                    ->where('tenant_id', $tenantId)
+                    ->where('outlet_id', $outletId)
+                    ->first();
+                $subtotal = array_sum(array_map(
+                    static fn (array $line): int => $line['line_total'],
+                    $lines,
+                ));
+                $discountAmount = 0;
+                $feeAmount = 0;
+                $taxEnabled = $taxSetting !== null && $taxSetting->is_enabled === true && (int) $taxSetting->rate_basis_points > 0;
+                $taxRate = $taxEnabled ? (int) $taxSetting->rate_basis_points : 0;
+                $taxName = $taxEnabled && is_string($taxSetting->name) ? $taxSetting->name : null;
+                $taxInclusive = $taxEnabled && $taxSetting->is_inclusive === true;
+                $taxAmount = $taxEnabled
+                    ? ($taxInclusive
+                        ? $this->roundDivision($subtotal * $taxRate, 10000 + $taxRate)
+                        : $this->roundDivision($subtotal * $taxRate, 10000))
+                    : 0;
+                $grandTotal = $subtotal - $discountAmount + $feeAmount + ($taxInclusive ? 0 : $taxAmount);
+                $sequence = $this->nextOrderSequence($tenantId, $outletId);
+                $accessToken = bin2hex(random_bytes(32));
+                $now = now();
 
-            $outlet = Outlet::withoutGlobalScopes()
-                ->whereKey($outletId)
-                ->where('tenant_id', $tenantId)
-                ->firstOrFail();
-            $taxSetting = TaxSetting::withoutGlobalScopes()
-                ->where('tenant_id', $tenantId)
-                ->where('outlet_id', $outletId)
-                ->first();
-            $subtotal = array_sum(array_map(
-                static fn (array $line): int => $line['line_total'],
-                $lines,
-            ));
-            $discountAmount = 0;
-            $feeAmount = 0;
-            $taxEnabled = $taxSetting !== null && $taxSetting->is_enabled === true && (int) $taxSetting->rate_basis_points > 0;
-            $taxRate = $taxEnabled ? (int) $taxSetting->rate_basis_points : 0;
-            $taxName = $taxEnabled && is_string($taxSetting->name) ? $taxSetting->name : null;
-            $taxInclusive = $taxEnabled && $taxSetting->is_inclusive === true;
-            $taxAmount = $taxEnabled
-                ? ($taxInclusive
-                    ? $this->roundDivision($subtotal * $taxRate, 10000 + $taxRate)
-                    : $this->roundDivision($subtotal * $taxRate, 10000))
-                : 0;
-            $grandTotal = $subtotal - $discountAmount + $feeAmount + ($taxInclusive ? 0 : $taxAmount);
-            $sequence = $this->nextOrderSequence($tenantId, $outletId);
-            $accessToken = bin2hex(random_bytes(32));
-            $now = now();
+                $order = Order::withoutGlobalScopes()->create([
+                    'tenant_id' => $tenantId,
+                    'outlet_id' => $outletId,
+                    'table_id' => $access->table->getKey(),
+                    'order_sequence' => $sequence,
+                    'order_number' => 'A-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT),
+                    'customer_name' => $this->nullableString($data['customer_name'] ?? null),
+                    'status' => OrderStatus::Draft,
+                    'subtotal' => $subtotal,
+                    'discount_amount' => $discountAmount,
+                    'tax_name_snapshot' => $taxName,
+                    'tax_rate_snapshot' => $taxRate,
+                    'tax_inclusive_snapshot' => $taxInclusive,
+                    'tax_amount' => $taxAmount,
+                    'fee_amount' => $feeAmount,
+                    'grand_total' => $grandTotal,
+                    'currency' => (string) $outlet->currency,
+                    'idempotency_key' => $idempotencyKey,
+                    'idempotency_fingerprint' => $fingerprint,
+                    'access_token_hash' => hash('sha256', $accessToken),
+                    'access_token_encrypted' => Crypt::encryptString($accessToken),
+                ]);
 
-            $order = Order::withoutGlobalScopes()->create([
-                'tenant_id' => $tenantId,
-                'outlet_id' => $outletId,
-                'table_id' => $access->table->getKey(),
-                'order_sequence' => $sequence,
-                'order_number' => 'A-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT),
-                'customer_name' => $this->nullableString($data['customer_name'] ?? null),
-                'status' => OrderStatus::Draft,
-                'subtotal' => $subtotal,
-                'discount_amount' => $discountAmount,
-                'tax_name_snapshot' => $taxName,
-                'tax_rate_snapshot' => $taxRate,
-                'tax_inclusive_snapshot' => $taxInclusive,
-                'tax_amount' => $taxAmount,
-                'fee_amount' => $feeAmount,
-                'grand_total' => $grandTotal,
-                'currency' => (string) $outlet->currency,
-                'idempotency_key' => $idempotencyKey,
-                'idempotency_fingerprint' => $fingerprint,
-                'access_token_hash' => hash('sha256', $accessToken),
-                'access_token_encrypted' => Crypt::encryptString($accessToken),
-            ]);
+                $this->statuses->record($order, null, OrderStatus::Draft);
+                $this->statuses->transition($order, OrderStatus::AwaitingPayment);
 
-            $this->statuses->record($order, null, OrderStatus::Draft);
-            $this->statuses->transition($order, OrderStatus::AwaitingPayment);
+                foreach ($lines as $line) {
+                    /** @var OrderItem $orderItem */
+                    $orderItem = OrderItem::withoutGlobalScopes()->create([
+                        'tenant_id' => $tenantId,
+                        'outlet_id' => $outletId,
+                        'order_id' => $order->getKey(),
+                        'product_id' => $line['product_id'],
+                        'variant_id' => $line['variant_id'],
+                        'product_name_snapshot' => $line['product_name'],
+                        'product_description_snapshot' => $line['product_description'],
+                        'variant_name_snapshot' => $line['variant_name'],
+                        'base_price_snapshot' => $line['base_price'],
+                        'variant_price_delta_snapshot' => $line['variant_price_delta'],
+                        'modifier_amount_snapshot' => $line['modifier_amount'],
+                        'unit_price' => $line['unit_price'],
+                        'quantity' => $line['quantity'],
+                        'line_total' => $line['line_total'],
+                        'note' => $line['note'],
+                    ]);
 
-            foreach ($lines as $line) {
-                /** @var OrderItem $orderItem */
-                $orderItem = OrderItem::withoutGlobalScopes()->create([
+                    foreach ($line['modifiers'] as $modifier) {
+                        OrderItemModifier::withoutGlobalScopes()->create([
+                            'tenant_id' => $tenantId,
+                            'outlet_id' => $outletId,
+                            'order_item_id' => $orderItem->getKey(),
+                            'modifier_id' => $modifier['modifier_id'],
+                            'modifier_option_id' => $modifier['option_id'],
+                            'modifier_name_snapshot' => $modifier['modifier_name'],
+                            'option_name_snapshot' => $modifier['option_name'],
+                            'price_delta_snapshot' => $modifier['price_delta'],
+                        ]);
+                    }
+                }
+
+                $payment = Payment::withoutGlobalScopes()->create([
                     'tenant_id' => $tenantId,
                     'outlet_id' => $outletId,
                     'order_id' => $order->getKey(),
-                    'product_id' => $line['product_id'],
-                    'variant_id' => $line['variant_id'],
-                    'product_name_snapshot' => $line['product_name'],
-                    'product_description_snapshot' => $line['product_description'],
-                    'variant_name_snapshot' => $line['variant_name'],
-                    'base_price_snapshot' => $line['base_price'],
-                    'variant_price_delta_snapshot' => $line['variant_price_delta'],
-                    'modifier_amount_snapshot' => $line['modifier_amount'],
-                    'unit_price' => $line['unit_price'],
-                    'quantity' => $line['quantity'],
-                    'line_total' => $line['line_total'],
-                    'note' => $line['note'],
+                    'method' => (string) $data['payment_method'],
+                    'status' => PaymentStatus::Pending,
+                    'amount' => $grandTotal,
+                    'currency' => (string) $outlet->currency,
+                    'provider' => (string) config('payments.default_provider', 'midtrans'),
+                    'expires_at' => $now->copy()->addMinutes(15),
                 ]);
+                $payment->update(['provider_reference' => 'meja-payment-'.$payment->getKey()]);
 
-                foreach ($line['modifiers'] as $modifier) {
-                    OrderItemModifier::withoutGlobalScopes()->create([
-                        'tenant_id' => $tenantId,
-                        'outlet_id' => $outletId,
-                        'order_item_id' => $orderItem->getKey(),
-                        'modifier_id' => $modifier['modifier_id'],
-                        'modifier_option_id' => $modifier['option_id'],
-                        'modifier_name_snapshot' => $modifier['modifier_name'],
-                        'option_name_snapshot' => $modifier['option_name'],
-                        'price_delta_snapshot' => $modifier['price_delta'],
-                    ]);
-                }
-            }
+                return [
+                    'order' => $this->loadOrder($order),
+                    'access_token' => $accessToken,
+                    'created' => true,
+                ];
+            }, attempts: 3);
+        } catch (Throwable $exception) {
+            $this->telemetry->recordDuration('checkout.failed', $startedAt, [
+                'flow' => 'public_order',
+                'exception' => $exception::class,
+            ], 'warning');
 
-            $payment = Payment::withoutGlobalScopes()->create([
-                'tenant_id' => $tenantId,
-                'outlet_id' => $outletId,
-                'order_id' => $order->getKey(),
-                'method' => (string) $data['payment_method'],
-                'status' => PaymentStatus::Pending,
-                'amount' => $grandTotal,
-                'currency' => (string) $outlet->currency,
-                'provider' => (string) config('payments.default_provider', 'midtrans'),
-                'expires_at' => $now->copy()->addMinutes(15),
-            ]);
-            $payment->update(['provider_reference' => 'meja-payment-'.$payment->getKey()]);
+            throw $exception;
+        }
 
-            return [
-                'order' => $this->loadOrder($order),
-                'access_token' => $accessToken,
-                'created' => true,
-            ];
-        }, attempts: 3);
+        $this->telemetry->recordDuration('checkout.completed', $startedAt, [
+            'flow' => 'public_order',
+            'created' => $result['created'],
+            'outcome' => $result['created'] ? 'created' : 'idempotent',
+        ]);
+
+        return $result;
     }
 
     /**

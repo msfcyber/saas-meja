@@ -399,8 +399,7 @@ export default function Orders({
                                 onClick={() =>
                                     updateNotificationPreferences({
                                         ...notificationPreferences,
-                                        visual_enabled:
-                                            !notificationPreferences.visual_enabled,
+                                        visual_enabled: !notificationPreferences.visual_enabled,
                                     })
                                 }
                                 className="flex min-h-11 items-center gap-2 rounded-full border bg-background px-4 text-sm font-bold"
@@ -472,6 +471,7 @@ export default function Orders({
                                 key={option.id}
                                 type="button"
                                 onClick={() => applyFilters(option.id)}
+                                aria-pressed={filters.status === option.id}
                                 className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-bold ${filters.status === option.id ? "bg-foreground text-background" : "border bg-card hover:bg-secondary"}`}
                             >
                                 {option.label}
@@ -581,9 +581,13 @@ export default function Orders({
                                                 href={`/orders/${order.id}/receipt`}
                                                 target="_blank"
                                                 rel="noreferrer"
+                                                aria-label={`Cetak struk order ${order.number}`}
                                                 className="mt-4 flex min-h-10 items-center justify-center gap-2 rounded-full border text-xs font-bold hover:bg-secondary"
                                             >
-                                                <ReceiptText className="size-3.5" aria-hidden="true" />
+                                                <ReceiptText
+                                                    className="size-3.5"
+                                                    aria-hidden="true"
+                                                />
                                                 Cetak struk
                                             </a>
                                         )}
@@ -594,6 +598,7 @@ export default function Orders({
                                                 config.next === null || pendingOrderId === order.id
                                             }
                                             aria-busy={pendingOrderId === order.id}
+                                            aria-label={`${pendingOrderId === order.id ? "Menyimpan order" : config.action} ${order.number}`}
                                             className="mt-5 flex min-h-12 w-full items-center justify-between rounded-full bg-foreground px-5 text-sm font-bold text-background transition-colors hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                             <span className="flex items-center gap-2">

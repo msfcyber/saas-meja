@@ -150,6 +150,7 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                         onClick={() =>
                             router.get("/tables", {}, { preserveState: true, replace: true })
                         }
+                        aria-pressed={filters.zone === null}
                         className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-bold ${filters.zone === null ? "bg-foreground text-background" : "border bg-card hover:bg-secondary"}`}
                     >
                         Semua meja
@@ -165,6 +166,7 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                     { preserveState: true, replace: true },
                                 )
                             }
+                            aria-pressed={filters.zone === zone}
                             className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-bold ${filters.zone === zone ? "bg-foreground text-background" : "border bg-card hover:bg-secondary"}`}
                         >
                             {zone}
@@ -174,7 +176,10 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                 <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {tables.length === 0 ? (
                         <div className="col-span-full rounded-[1.5rem] border border-dashed p-10 text-center">
-                            <Table2 className="mx-auto size-8 text-muted-foreground" />
+                            <Table2
+                                className="mx-auto size-8 text-muted-foreground"
+                                aria-hidden="true"
+                            />
                             <p className="mt-3 font-semibold">Belum ada meja.</p>
                             <p className="mt-1 text-sm text-muted-foreground">
                                 Tambahkan meja untuk mulai menyiapkan QR.
@@ -194,8 +199,12 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                             </h2>
                                             <span
                                                 className={`size-2 rounded-full ${table.is_active ? "bg-emerald-500" : "bg-slate-300"}`}
+                                                aria-hidden="true"
                                             />
                                         </div>
+                                        <p className="sr-only">
+                                            {table.is_active ? "Meja aktif" : "Meja tidak aktif"}
+                                        </p>
                                         <p className="mt-1 text-xs text-muted-foreground">
                                             {table.zone ?? "Tanpa zona"} · kapasitas{" "}
                                             {table.capacity}
@@ -231,7 +240,11 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                             size="sm"
                                             className="min-h-10 rounded-full"
                                         >
-                                            <a href={table.qr_download_url} download>
+                                            <a
+                                                href={table.qr_download_url}
+                                                download
+                                                aria-label={`Unduh QR ${table.name}`}
+                                            >
                                                 <Download aria-hidden="true" /> Unduh
                                             </a>
                                         </Button>
@@ -247,6 +260,7 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                                 href={table.qr_print_url}
                                                 target="_blank"
                                                 rel="noreferrer"
+                                                aria-label={`Cetak QR ${table.name}`}
                                             >
                                                 <Printer aria-hidden="true" /> Cetak
                                             </a>
@@ -258,6 +272,7 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                         className="min-h-10 rounded-full"
                                         disabled={processingTableId === table.id}
                                         onClick={() => regenerateQr(table)}
+                                        aria-label={`${table.has_active_qr ? "Regenerasi" : "Buat"} QR ${table.name}`}
                                     >
                                         <RefreshCw aria-hidden="true" />
                                         {table.has_active_qr ? "Regenerasi" : "Buat QR"}
@@ -269,6 +284,7 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                             className="min-h-10 rounded-full text-destructive hover:text-destructive"
                                             disabled={processingTableId === table.id}
                                             onClick={() => revokeQr(table)}
+                                            aria-label={`Cabut QR ${table.name}`}
                                         >
                                             <Ban aria-hidden="true" /> Cabut
                                         </Button>
@@ -298,23 +314,27 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                             <Label htmlFor="table-name">Nama meja</Label>
                             <Input
                                 id="table-name"
+                                aria-invalid={Boolean(form.errors.name)}
+                                aria-describedby={form.errors.name ? "table-name-error" : undefined}
                                 value={form.data.name}
                                 onChange={(event) => form.setData("name", event.target.value)}
                                 autoFocus
                                 required
                             />
-                            <InputError message={form.errors.name} />
+                            <InputError id="table-name-error" message={form.errors.name} />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="table-code">Kode meja</Label>
                             <Input
                                 id="table-code"
+                                aria-invalid={Boolean(form.errors.code)}
+                                aria-describedby={form.errors.code ? "table-code-error" : undefined}
                                 value={form.data.code}
                                 onChange={(event) => form.setData("code", event.target.value)}
                                 placeholder="TBL-001"
                                 required
                             />
-                            <InputError message={form.errors.code} />
+                            <InputError id="table-code-error" message={form.errors.code} />
                         </div>
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div className="grid gap-2">
@@ -326,16 +346,24 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                 </Label>
                                 <Input
                                     id="table-zone"
+                                    aria-invalid={Boolean(form.errors.zone)}
+                                    aria-describedby={
+                                        form.errors.zone ? "table-zone-error" : undefined
+                                    }
                                     value={form.data.zone}
                                     onChange={(event) => form.setData("zone", event.target.value)}
                                     placeholder="Teras"
                                 />
-                                <InputError message={form.errors.zone} />
+                                <InputError id="table-zone-error" message={form.errors.zone} />
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="table-capacity">Kapasitas</Label>
                                 <Input
                                     id="table-capacity"
+                                    aria-invalid={Boolean(form.errors.capacity)}
+                                    aria-describedby={
+                                        form.errors.capacity ? "table-capacity-error" : undefined
+                                    }
                                     type="number"
                                     min="1"
                                     value={form.data.capacity}
@@ -344,7 +372,10 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                     }
                                     required
                                 />
-                                <InputError message={form.errors.capacity} />
+                                <InputError
+                                    id="table-capacity-error"
+                                    message={form.errors.capacity}
+                                />
                             </div>
                         </div>
                         <DialogFooter>

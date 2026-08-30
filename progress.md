@@ -17,6 +17,13 @@ Terakhir diperbarui: 30 Agustus 2026
 
 Beberapa halaman marketing dan fitur realtime/notifikasi masih menggunakan data demo atau fallback prototype sampai backend domainnya tersedia.
 
+## Selesai - Static Accessibility Hardening
+
+- [x] Menambahkan label/error association `aria-invalid` dan `aria-describedby` pada form auth, onboarding, settings, produk, meja, checkout, dan two-factor.
+- [x] Menambahkan skip link, landmark utama, state navigasi aktif, live announcement, dan label kontrol ikon.
+- [x] Memperbaiki target tombol mobile, dialog/sheet overflow, kontras CTA checkout, dan menghapus positive `tabIndex` pada auth.
+- [ ] Browser-level accessibility audit dan verifikasi viewport masih menunggu E2E/browser tooling.
+
 ## Selesai - Backend Foundation: Data Layer
 
 - [x] Memasang `spatie/laravel-permission` v7.4.2 dan mengaktifkan teams dengan `tenant_id`.
@@ -104,7 +111,8 @@ Beberapa halaman marketing dan fitur realtime/notifikasi masih menggunakan data 
 - [x] Tambahkan laporan penjualan tenant-scoped dengan filter tanggal/outlet, agregasi payment, produk terlaris, dan transaksi terbaru.
 - [x] Tambahkan audit log tenant-aware untuk subscription, invoice, payment, role, dan tax setup.
 - [x] Tambahkan dashboard superadmin platform read-only, gate, dan command grant/revoke.
-- [ ] Tambahkan Horizon, observability, backup, dan recovery procedure.
+- [x] Tambahkan correlation ID, structured request/lifecycle telemetry, health summary, dan runbook backup/recovery.
+- [ ] Tambahkan Horizon, integrasi metrik/alert produksi, automated backup, dan restore drill terjadwal.
 
 ## Quality Gate Berikutnya
 
@@ -116,5 +124,7 @@ Beberapa halaman marketing dan fitur realtime/notifikasi masih menggunakan data 
 - [x] Feature test agregasi laporan, timezone tenant, filter outlet, isolasi tenant, dan permission laporan.
 - [x] Feature test audit log untuk setup owner, transisi payment/subscription, redaction payload, dan tenant scope.
 - [x] Feature test akses platform dan agregasi tenant lintas konteks.
+- [x] Feature test propagation correlation ID dan korelasi audit request.
+- [x] Feature test structured telemetry, redaction atribut, dan health threshold.
 - [ ] Browser test alur scan QR sampai struk pada viewport 360 px, tablet, dan desktop.
 - [ ] Audit aksesibilitas, Core Web Vitals, optimasi gambar, empty/error/loading state, dan koneksi lambat.

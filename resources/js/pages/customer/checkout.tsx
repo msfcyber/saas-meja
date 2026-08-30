@@ -323,17 +323,19 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                             </section>
 
                             <section className="mt-6 rounded-[1.5rem] border bg-card p-5 sm:p-6">
-                                <h2 className="font-bold">
+                                <label className="font-bold" htmlFor="customer-name">
                                     Nama pemesan{" "}
                                     <span className="font-normal text-muted-foreground">
                                         (opsional)
                                     </span>
-                                </h2>
+                                </label>
                                 <input
+                                    id="customer-name"
                                     value={customerName}
                                     onChange={(event) => setCustomerName(event.target.value)}
                                     className="mt-4 min-h-12 w-full rounded-xl border bg-background px-4 text-sm outline-none focus:ring-2 focus:ring-ring"
                                     placeholder="Agar staf mudah memanggilmu"
+                                    autoComplete="name"
                                     maxLength={120}
                                 />
                             </section>
@@ -426,7 +428,7 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                                     type="submit"
                                     form="checkout-form"
                                     disabled={processing || activeCart.length === 0}
-                                    className="mt-7 flex min-h-13 w-full items-center justify-between rounded-full bg-[#d87655] px-5 text-sm font-bold text-white transition-colors hover:bg-[#c96546] disabled:cursor-not-allowed disabled:opacity-60"
+                                    className="mt-7 flex min-h-13 w-full items-center justify-between rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                     {processing ? "Memproses..." : "Lanjutkan pembayaran"}{" "}
                                     <ArrowRight className="size-4" aria-hidden="true" />
@@ -434,7 +436,7 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                             ) : (
                                 <Link
                                     href="/demo/tracking"
-                                    className="mt-7 flex min-h-13 items-center justify-between rounded-full bg-[#d87655] px-5 text-sm font-bold text-white transition-colors hover:bg-[#c96546]"
+                                    className="mt-7 flex min-h-13 items-center justify-between rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
                                 >
                                     Bayar sekarang{" "}
                                     <ArrowRight className="size-4" aria-hidden="true" />

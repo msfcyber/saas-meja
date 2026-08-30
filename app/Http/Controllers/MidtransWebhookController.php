@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Services\MidtransSubscriptionWebhookService;
 use App\Services\MidtransWebhookService;
+use App\Services\TelemetryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Throwable;
 
 class MidtransWebhookController extends Controller
 {
@@ -13,6 +15,7 @@ class MidtransWebhookController extends Controller
         Request $request,
         MidtransWebhookService $webhooks,
         MidtransSubscriptionWebhookService $subscriptionWebhooks,
+        TelemetryService $telemetry,
     ): JsonResponse {
         $data = $request->validate([
             'transaction_id' => ['required', 'string', 'max:150'],
@@ -27,10 +30,32 @@ class MidtransWebhookController extends Controller
             'payment_type' => ['nullable', 'string', 'max:50'],
         ]);
 
-        if (str_starts_with((string) $data['order_id'], 'meja-subscription-')) {
-            return response()->json($subscriptionWebhooks->handle($data));
+        $isSubscription = str_starts_with((string) $data['order_id'], 'meja-subscription-');
+        $startedAt = hrtime(true);
+
+        try {
+            $result = $isSubscription
+                ? $subscriptionWebhooks->handle($data)
+                : $webhooks->handle($data);
+        } catch (Throwable $exception) {
+            $telemetry->recordDuration('payment.webhook.failed', $startedAt, [
+                'provider' => 'midtrans',
+                'flow' => $isSubscription ? 'subscription' : 'order',
+                'transaction_status' => (string) $data['transaction_status'],
+                'exception' => $exception::class,
+            ], 'warning');
+
+            throw $exception;
         }
 
-        return response()->json($webhooks->handle($data));
+        $telemetry->recordDuration('payment.webhook.completed', $startedAt, [
+            'provider' => 'midtrans',
+            'flow' => $isSubscription ? 'subscription' : 'order',
+            'transaction_status' => (string) $data['transaction_status'],
+            'processed' => (bool) ($result['processed'] ?? false),
+            'duplicate' => (bool) ($result['duplicate'] ?? false),
+        ]);
+
+        return response()->json($result);
     }
 }

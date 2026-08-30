@@ -1,5 +1,5 @@
 import { Link } from "@inertiajs/react";
-import { ChevronDown, MapPin } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { BrandMark, BrandName } from "@/components/brand-mark";
 
 export function CustomerHeader({
@@ -21,10 +21,7 @@ export function CustomerHeader({
                     <BrandName compact />
                 </Link>
                 {!minimal && (
-                    <button
-                        type="button"
-                        className="flex min-h-11 items-center gap-2 rounded-full border bg-card px-3.5 text-left transition-colors hover:bg-secondary"
-                    >
+                    <div className="flex min-h-11 items-center gap-2 rounded-full border bg-card px-3.5 text-left">
                         <MapPin className="size-4 text-primary" aria-hidden="true" />
                         <span>
                             <span className="block text-[10px] leading-none font-bold tracking-wider text-muted-foreground uppercase">
@@ -34,11 +31,7 @@ export function CustomerHeader({
                                 {tableName}
                             </span>
                         </span>
-                        <ChevronDown
-                            className="size-3.5 text-muted-foreground"
-                            aria-hidden="true"
-                        />
-                    </button>
+                    </div>
                 )}
             </div>
         </header>

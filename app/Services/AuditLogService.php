@@ -26,7 +26,9 @@ final class AuditLogService
         $request = app()->bound(Request::class) ? app(Request::class) : null;
         $actorId = $attributes['actor_id'] ?? Auth::id();
         $actorId = is_numeric($actorId) ? (int) $actorId : null;
-        $requestId = $attributes['request_id'] ?? $request?->header('X-Request-ID');
+        $requestId = $attributes['request_id']
+            ?? $request?->attributes->get('request_id')
+            ?? $request?->header('X-Request-ID');
 
         return AuditLog::withoutGlobalScopes()->create([
             'tenant_id' => $attributes['tenant_id'] ?? null,
@@ -36,7 +38,10 @@ final class AuditLogService
             'event' => $event,
             'auditable_type' => $attributes['auditable_type'] ?? null,
             'auditable_id' => $attributes['auditable_id'] ?? null,
-            'request_id' => is_string($requestId) && $requestId !== '' ? substr($requestId, 0, 100) : null,
+            'request_id' => is_string($requestId)
+                && preg_match('/\A[A-Za-z0-9._:-]{1,100}\z/D', $requestId) === 1
+                ? $requestId
+                : null,
             'ip_address' => $request?->ip(),
             'user_agent' => $request?->userAgent(),
             'old_values' => $attributes['old_values'] ?? null,
