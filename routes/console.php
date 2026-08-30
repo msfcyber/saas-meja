@@ -6,7 +6,9 @@ use App\Models\Payment;
 use App\Models\PaymentEvent;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\BackupService;
 use App\Services\PaymentReconciliationService;
+use App\Services\TelemetryService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -51,6 +53,107 @@ Artisan::command('payments:reconcile {--limit=100}', function (PaymentReconcilia
     return $failures === 0 ? 0 : 1;
 })->purpose('Reconcile pending Midtrans payments');
 
+Artisan::command('ops:backup {--destination= : Override the configured backup destination}', function (
+    BackupService $backups,
+    TelemetryService $telemetry,
+): int {
+    $destination = $this->option('destination');
+    $destination = is_string($destination) && trim($destination) !== '' ? $destination : null;
+
+    try {
+        $result = $backups->create($destination);
+        $telemetry->record('backup.completed', [
+            'backup_id' => $result['backup_id'],
+            'pruned' => $result['pruned'],
+        ]);
+
+        $this->info("Backup {$result['backup_id']} selesai.");
+        $this->line('Lokasi: '.$result['directory']);
+
+        return 0;
+    } catch (Throwable $exception) {
+        report($exception);
+        $telemetry->record('backup.failed', [
+            'reason' => $exception::class,
+        ], 'error');
+        $this->error('Backup gagal. Periksa konfigurasi dan log operasional.');
+
+        return 1;
+    }
+})->purpose('Create a verified SQLite database and public asset backup');
+
+Artisan::command('ops:backup:verify {backup : Backup directory to verify} {--restore-drill : Restore into an isolated temporary directory}', function (
+    BackupService $backups,
+    TelemetryService $telemetry,
+): int {
+    $restoreDrill = (bool) $this->option('restore-drill');
+    $backupArgument = $this->argument('backup');
+
+    if (! is_string($backupArgument)) {
+        $this->error('Direktori backup tidak valid.');
+
+        return 1;
+    }
+
+    try {
+        $result = $backups->verify($backupArgument, $restoreDrill);
+        $telemetry->record('backup.verified', [
+            'backup_id' => $result['backup_id'],
+            'asset_entries' => $result['asset_entries'],
+            'restore_drill' => $result['restore_drill'],
+        ]);
+
+        $this->info("Backup {$result['backup_id']} valid.");
+        $this->line('Database integrity: '.$result['database_integrity']);
+        $this->line('Asset entries: '.$result['asset_entries']);
+
+        if ($restoreDrill) {
+            $this->line('Restore drill: isolated staging berhasil diverifikasi.');
+        }
+
+        return 0;
+    } catch (Throwable $exception) {
+        report($exception);
+        $telemetry->record('backup.verification_failed', [
+            'reason' => $exception::class,
+            'restore_drill' => $restoreDrill,
+        ], 'error');
+        $this->error('Verifikasi backup gagal. Periksa manifest dan log operasional.');
+
+        return 1;
+    }
+})->purpose('Verify a SQLite backup and optionally run an isolated restore drill');
+
+Artisan::command('ops:backup:verify-latest {--destination= : Override the configured backup destination}', function (
+    BackupService $backups,
+    TelemetryService $telemetry,
+): int {
+    try {
+        $destination = $this->option('destination');
+        $destination = is_string($destination) && trim($destination) !== '' ? $destination : null;
+        $backup = $backups->latest($destination);
+        $result = $backups->verify($backup, restoreDrill: true);
+        $telemetry->record('backup.restore_drill_completed', [
+            'backup_id' => $result['backup_id'],
+            'asset_entries' => $result['asset_entries'],
+        ]);
+
+        $this->info("Restore drill backup {$result['backup_id']} berhasil.");
+        $this->line('Database integrity: '.$result['database_integrity']);
+        $this->line('Asset entries: '.$result['asset_entries']);
+
+        return 0;
+    } catch (Throwable $exception) {
+        report($exception);
+        $telemetry->record('backup.restore_drill_failed', [
+            'reason' => $exception::class,
+        ], 'error');
+        $this->error('Restore drill gagal. Periksa backup terbaru dan log operasional.');
+
+        return 1;
+    }
+})->purpose('Verify the latest SQLite backup with an isolated restore drill');
+
 Schedule::command('payments:reconcile --limit=100')
     ->everyFiveMinutes()
     ->withoutOverlapping();
@@ -85,6 +188,31 @@ Artisan::command('subscriptions:expire', function (): int {
 Schedule::command('subscriptions:expire')
     ->hourly()
     ->withoutOverlapping();
+
+if ((bool) config('operations.backup.enabled', false)) {
+    Schedule::command('ops:backup')
+        ->dailyAt('02:00')
+        ->withoutOverlapping();
+}
+
+if ((bool) config('operations.backup.restore_drill_enabled', false)) {
+    Schedule::command('ops:backup:verify-latest')
+        ->quarterly()
+        ->withoutOverlapping();
+}
+
+$queueConnection = (string) config('queue.default', 'database');
+
+if ((bool) config('observability.queue_monitor_enabled', true)
+    && in_array($queueConnection, ['database', 'redis'], true)) {
+    $queueConfig = config("queue.connections.{$queueConnection}", []);
+    $queueName = is_array($queueConfig) ? (string) ($queueConfig['queue'] ?? 'default') : 'default';
+    $queueThreshold = (int) config('observability.queue_depth_threshold', 100);
+
+    Schedule::command("queue:monitor {$queueConnection}:{$queueName} --max={$queueThreshold}")
+        ->everyMinute()
+        ->withoutOverlapping();
+}
 
 Artisan::command('ops:health {--json : Output machine-readable JSON}', function (): int {
     $checks = [];

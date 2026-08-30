@@ -1,6 +1,7 @@
 import { Link, router, usePage } from "@inertiajs/react";
 import {
     BarChart3,
+    Building2,
     ClipboardList,
     CreditCard,
     LayoutDashboard,
@@ -8,6 +9,7 @@ import {
     Settings2,
     ShieldCheck,
     Soup,
+    UsersRound,
 } from "lucide-react";
 import AppLogo from "@/components/app-logo";
 import { NavMain } from "@/components/nav-main";
@@ -54,6 +56,18 @@ const mainNavItems: PermissionNavItem[] = [
         href: "/tables",
         icon: QrCode,
         permission: "table.manage",
+    },
+    {
+        title: "Outlet",
+        href: "/outlets",
+        icon: Building2,
+        permission: "outlet.manage",
+    },
+    {
+        title: "Staf & akses",
+        href: "/staff",
+        icon: UsersRound,
+        permission: "staff.manage",
     },
     {
         title: "Subscription",

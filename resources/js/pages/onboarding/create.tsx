@@ -37,7 +37,88 @@ export default function CreateOnboarding({ timezones }: Props) {
         tax_inclusive: false,
     });
 
+    function focusField(field: string) {
+        window.setTimeout(() => document.getElementById(field)?.focus(), 0);
+    }
+
+    function stepForField(field: string): number {
+        if (field.startsWith("tax_")) {
+            return 2;
+        }
+
+        if (["outlet_name", "address", "phone", "timezone"].includes(field)) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    function validateStep(stepToValidate: number, clearErrors = true): string[] {
+        if (clearErrors) {
+            form.clearErrors();
+        }
+
+        const invalidFields: string[] = [];
+
+        if (stepToValidate === 0 && form.data.business_name.trim() === "") {
+            form.setError("business_name", "Nama bisnis wajib diisi.");
+            invalidFields.push("business_name");
+        }
+
+        if (stepToValidate === 1) {
+            if (form.data.outlet_name.trim() === "") {
+                form.setError("outlet_name", "Nama outlet wajib diisi.");
+                invalidFields.push("outlet_name");
+            }
+
+            if (form.data.timezone.trim() === "") {
+                form.setError("timezone", "Zona waktu wajib dipilih.");
+                invalidFields.push("timezone");
+            }
+        }
+
+        if (stepToValidate === 2 && form.data.tax_enabled) {
+            if (form.data.tax_name.trim() === "") {
+                form.setError("tax_name", "Nama pajak wajib diisi.");
+                invalidFields.push("tax_name");
+            }
+
+            const taxRate = Number(form.data.tax_rate);
+
+            if (!form.data.tax_rate.trim() || Number.isNaN(taxRate) || taxRate <= 0 || taxRate > 100) {
+                form.setError("tax_rate", "Tarif pajak harus lebih besar dari 0% dan maksimal 100%.");
+                invalidFields.push("tax_rate");
+            }
+        }
+
+        return invalidFields;
+    }
+
+    function validateAll(): boolean {
+        form.clearErrors();
+        const invalidFields = [0, 1, 2].flatMap((stepToValidate) =>
+            validateStep(stepToValidate, false),
+        );
+
+        if (invalidFields.length === 0) {
+            return true;
+        }
+
+        setStep(stepForField(invalidFields[0]));
+        focusField(invalidFields[0]);
+
+        return false;
+    }
+
     function next() {
+        const invalidFields = validateStep(step);
+
+        if (invalidFields.length > 0) {
+            focusField(invalidFields[0]);
+
+            return;
+        }
+
         setStep((current) => Math.min(current + 1, steps.length - 1));
     }
 
@@ -47,7 +128,21 @@ export default function CreateOnboarding({ timezones }: Props) {
 
     function submit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        form.post("/onboarding");
+
+        if (!validateAll()) {
+            return;
+        }
+
+        form.post("/onboarding", {
+            onError: (errors) => {
+                const firstError = Object.keys(errors)[0];
+
+                if (firstError) {
+                    setStep(stepForField(firstError));
+                    focusField(firstError);
+                }
+            },
+        });
     }
 
     const hasErrors = Object.keys(form.errors).length > 0;
@@ -113,8 +208,11 @@ export default function CreateOnboarding({ timezones }: Props) {
                 >
                     {hasErrors && (
                         <div
+                            id="onboarding-errors"
                             className="mb-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
                             role="alert"
+                            aria-live="assertive"
+                            tabIndex={-1}
                         >
                             Periksa kembali data yang ditandai sebelum melanjutkan.
                         </div>

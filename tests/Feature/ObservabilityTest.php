@@ -5,6 +5,7 @@ use App\Services\AuditLogService;
 use App\Services\TelemetryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Queue\Events\QueueBusy;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -92,6 +93,22 @@ test('telemetry drops non-scalar attributes before writing logs', function () {
             return $context['event'] === 'test.metric'
                 && $context['duration_ms'] === 12
                 && ! array_key_exists('payload', $context);
+        }));
+});
+
+test('queue backlog emits warning telemetry with safe scalar attributes', function () {
+    Log::spy();
+
+    event(new QueueBusy('database', 'default', 101));
+
+    Log::shouldHaveReceived('warning')
+        ->once()
+        ->with('application.telemetry', Mockery::on(static function (array $context): bool {
+            return $context['event'] === 'queue.busy'
+                && $context['connection'] === 'database'
+                && $context['queue'] === 'default'
+                && $context['size'] === 101
+                && $context['threshold'] === 100;
         }));
 });
 

@@ -113,7 +113,11 @@ function TwoFactorSetupStep({
                                 </div>
                             ) : (
                                 <>
+                                    <label htmlFor="manual-setup-key" className="sr-only">
+                                        Manual setup key
+                                    </label>
                                     <input
+                                        id="manual-setup-key"
                                         type="text"
                                         readOnly
                                         value={manualSetupKey}
@@ -123,9 +127,17 @@ function TwoFactorSetupStep({
                                         type="button"
                                         onClick={() => copy(manualSetupKey)}
                                         className="border-border hover:bg-muted border-l px-3"
+                                        aria-label={
+                                            copiedText === manualSetupKey
+                                                ? "Setup key copied"
+                                                : "Copy setup key"
+                                        }
                                     >
-                                        <IconComponent className="w-4" />
+                                        <IconComponent className="w-4" aria-hidden="true" />
                                     </button>
+                                    <span className="sr-only" role="status" aria-live="polite">
+                                        {copiedText === manualSetupKey ? "Setup key copied" : ""}
+                                    </span>
                                 </>
                             )}
                         </div>

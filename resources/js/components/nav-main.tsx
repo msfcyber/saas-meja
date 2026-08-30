@@ -7,10 +7,12 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useCurrentUrl } from "@/hooks/use-current-url";
+import { useSidebar } from "@/components/ui/sidebar";
 import type { NavItem } from "@/types";
 
 export function NavMain({ items, label = "Operasional" }: { items: NavItem[]; label?: string }) {
     const { isCurrentUrl } = useCurrentUrl();
+    const { isMobile, setOpenMobile } = useSidebar();
 
     return (
         <nav aria-label={label}>
@@ -30,6 +32,11 @@ export function NavMain({ items, label = "Operasional" }: { items: NavItem[]; la
                                     <Link
                                         href={item.href}
                                         prefetch
+                                        onClick={() => {
+                                            if (isMobile) {
+                                                setOpenMobile(false);
+                                            }
+                                        }}
                                         aria-current={active ? "page" : undefined}
                                     >
                                         {item.icon && <item.icon aria-hidden="true" />}

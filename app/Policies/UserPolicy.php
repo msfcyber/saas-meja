@@ -14,6 +14,11 @@ class UserPolicy
         return $this->context->tenant() !== null && $user->can('staff.manage');
     }
 
+    public function create(User $user): bool
+    {
+        return $this->viewAny($user);
+    }
+
     public function view(User $user, User $subject): bool
     {
         return $this->viewAny($user) && $this->belongsToCurrentTenant($subject);
@@ -21,7 +26,12 @@ class UserPolicy
 
     public function update(User $user, User $subject): bool
     {
-        return $this->view($user, $subject);
+        return $this->view($user, $subject) && ! $this->isOwner($subject);
+    }
+
+    public function delete(User $user, User $subject): bool
+    {
+        return $this->update($user, $subject);
     }
 
     private function belongsToCurrentTenant(User $user): bool
@@ -29,5 +39,13 @@ class UserPolicy
         $tenantId = $this->context->tenantId();
 
         return $tenantId !== null && $user->tenants()->whereKey($tenantId)->exists();
+    }
+
+    private function isOwner(User $user): bool
+    {
+        $tenantId = $this->context->tenantId();
+
+        return $tenantId !== null
+            && (bool) $user->tenants()->whereKey($tenantId)->first()?->membership?->is_owner;
     }
 }

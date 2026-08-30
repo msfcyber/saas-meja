@@ -80,6 +80,22 @@ const demoCartItems: CustomerCartItem[] = [
 const makeIdempotencyKey = () =>
     `checkout-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 
+const CHECKOUT_REQUEST_TIMEOUT_MS = 15_000;
+
+async function fetchWithTimeout(
+    input: RequestInfo | URL,
+    init: RequestInit = {},
+): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), CHECKOUT_REQUEST_TIMEOUT_MS);
+
+    try {
+        return await fetch(input, { ...init, signal: controller.signal });
+    } finally {
+        window.clearTimeout(timeout);
+    }
+}
+
 export default function Checkout({ access, qr_token, outlet, table, tax }: Props) {
     const isPublicCheckout = access !== undefined;
     const [cart, setCart] = useState<CustomerCartItem[]>(() =>
@@ -128,11 +144,16 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
             return;
         }
 
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+            setError("Tidak ada koneksi internet. Periksa jaringanmu lalu coba lagi.");
+            return;
+        }
+
         setProcessing(true);
         setError(null);
 
         try {
-            const response = await fetch("/api/public/orders", {
+            const response = await fetchWithTimeout("/api/public/orders", {
                 method: "POST",
                 headers: {
                     Accept: "application/json",
@@ -166,10 +187,13 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                 );
             }
 
-            const paymentResponse = await fetch(`/api/public/orders/${body.access_token}/payment`, {
-                method: "POST",
-                headers: { Accept: "application/json" },
-            });
+            const paymentResponse = await fetchWithTimeout(
+                `/api/public/orders/${body.access_token}/payment`,
+                {
+                    method: "POST",
+                    headers: { Accept: "application/json" },
+                },
+            );
             const paymentBody: { redirect_url?: string; message?: string } =
                 await paymentResponse.json();
 
@@ -180,8 +204,18 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
             clearCustomerCart(qr_token);
             window.location.assign(paymentBody.redirect_url);
         } catch (exception) {
+            const isTimeout =
+                exception instanceof Error && exception.name === "AbortError";
+            const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+
             setError(
-                exception instanceof Error ? exception.message : "Checkout belum dapat diproses.",
+                isTimeout
+                    ? "Koneksi terlalu lama. Periksa jaringanmu lalu tekan coba lagi."
+                    : isOffline
+                      ? "Koneksi internet terputus. Periksa jaringanmu lalu coba lagi."
+                      : exception instanceof Error
+                        ? exception.message
+                        : "Checkout belum dapat diproses.",
             );
             setProcessing(false);
         }
@@ -200,7 +234,7 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                         <ArrowLeft className="size-4" aria-hidden="true" /> Kembali ke menu
                     </Link>
                     <div className="mt-5 grid gap-8 lg:grid-cols-[1fr_0.72fr] lg:items-start">
-                        <form id="checkout-form" onSubmit={submitOrder}>
+                        <form id="checkout-form" onSubmit={submitOrder} aria-busy={processing}>
                             <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
                                 Langkah terakhir
                             </p>
@@ -417,20 +451,23 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                             </div>
                             {error && (
                                 <p
-                                    className="mt-5 rounded-xl bg-red-400/15 p-3 text-sm font-semibold text-red-100"
-                                    role="alert"
-                                >
+                                     id="checkout-error"
+                                     className="mt-5 rounded-xl bg-red-400/15 p-3 text-sm font-semibold text-red-100"
+                                     role="alert"
+                                 >
                                     {error}
                                 </p>
                             )}
                             {isPublicCheckout ? (
                                 <button
                                     type="submit"
-                                    form="checkout-form"
-                                    disabled={processing || activeCart.length === 0}
-                                    className="mt-7 flex min-h-13 w-full items-center justify-between rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    {processing ? "Memproses..." : "Lanjutkan pembayaran"}{" "}
+                                     form="checkout-form"
+                                     disabled={processing || activeCart.length === 0}
+                                     aria-busy={processing}
+                                     aria-describedby={error ? "checkout-error" : undefined}
+                                     className="mt-7 flex min-h-13 w-full items-center justify-between rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                                 >
+                                     {processing ? "Memproses..." : error ? "Coba lagi" : "Lanjutkan pembayaran"}{" "}
                                     <ArrowRight className="size-4" aria-hidden="true" />
                                 </button>
                             ) : (

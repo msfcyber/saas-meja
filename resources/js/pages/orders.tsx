@@ -168,9 +168,17 @@ export default function Orders({
     const announcedOrderIds = useRef(new Set<number>());
     const hasLoadedNotificationOrders = useRef(false);
 
+    const [, refreshAge] = useState(0);
+
     useEffect(() => {
         setNotificationPreferences(notifications);
     }, [notifications]);
+
+    useEffect(() => {
+        const timer = window.setInterval(() => refreshAge(Date.now()), 1_000);
+
+        return () => window.clearInterval(timer);
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -362,6 +370,13 @@ export default function Orders({
             {
                 preserveScroll: true,
                 onFinish: () => setPendingOrderId(null),
+                onError: (errors) => {
+                    const message = Object.values(errors)[0];
+
+                    toast.error("Status order gagal diperbarui", {
+                        description: message ?? "Coba lagi dalam beberapa saat.",
+                    });
+                },
             },
         );
     }

@@ -309,10 +309,18 @@ export default function SalesReport({
                                 <table className="w-full min-w-[620px] text-left text-sm">
                                     <thead className="border-b text-xs text-muted-foreground">
                                         <tr>
-                                            <th className="pb-3 font-semibold">Order</th>
-                                            <th className="pb-3 font-semibold">Outlet</th>
-                                            <th className="pb-3 font-semibold">Payment</th>
-                                            <th className="pb-3 text-right font-semibold">Total</th>
+                                            <th scope="col" className="pb-3 font-semibold">
+                                                Order
+                                            </th>
+                                            <th scope="col" className="pb-3 font-semibold">
+                                                Outlet
+                                            </th>
+                                            <th scope="col" className="pb-3 font-semibold">
+                                                Payment
+                                            </th>
+                                            <th scope="col" className="pb-3 text-right font-semibold">
+                                                Total
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">

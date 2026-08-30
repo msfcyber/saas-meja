@@ -44,9 +44,9 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                         className="flex flex-col space-y-1 space-x-0"
                         aria-label="Settings"
                     >
-                        {sidebarNavItems.map((item, index) => (
+                        {sidebarNavItems.map((item) => (
                             <Button
-                                key={`${toUrl(item.href)}-${index}`}
+                                key={toUrl(item.href)}
                                 size="sm"
                                 variant="ghost"
                                 asChild
@@ -54,7 +54,12 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                                     'bg-muted': isCurrentOrParentUrl(item.href),
                                 })}
                             >
-                                <Link href={item.href}>
+                                <Link
+                                    href={item.href}
+                                    aria-current={
+                                        isCurrentOrParentUrl(item.href) ? 'page' : undefined
+                                    }
+                                >
                                     {item.icon && (
                                         <item.icon className="h-4 w-4" />
                                     )}

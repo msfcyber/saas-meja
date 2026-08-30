@@ -22,6 +22,43 @@ business and infrastructure can support them.
 
 ## Database Backup
 
+### Application-managed SQLite snapshot
+
+The repository includes an opt-in `ops:backup` command for SQLite deployments.
+It creates a consistent `VACUUM INTO` database snapshot, a ZIP archive of
+`storage/app/public`, and a `SHA256SUMS` manifest. The command removes incomplete
+output when any step fails and prunes only timestamped backup directories older
+than the configured retention period.
+
+```dotenv
+OPS_BACKUP_ENABLED=true
+OPS_BACKUP_DESTINATION=/var/backups/meja
+OPS_BACKUP_RETENTION_DAYS=30
+OPS_BACKUP_RESTORE_DRILL_ENABLED=true
+```
+
+When enabled, the Laravel scheduler runs the command daily at 02:00 UTC. A
+manual snapshot can be created with `php artisan ops:backup`. Upload the
+resulting directory to encrypted storage after creation; the local destination
+is only a staging location and is not an off-host backup by itself.
+
+Verify a backup before relying on it for recovery. The optional restore drill
+copies the database and extracts the asset archive into an isolated temporary
+directory, then removes the staging data without changing the live application:
+
+```sh
+php artisan ops:backup:verify /var/backups/meja/20260830_090324Z --restore-drill
+```
+
+Run this verification after backup format or storage changes. With
+`OPS_BACKUP_RESTORE_DRILL_ENABLED=true`, the scheduler runs
+`ops:backup:verify-latest` on the first day of each quarter. Record its output
+and measured restore time with the operations record.
+
+The command intentionally rejects MySQL, MariaDB, and other database drivers.
+Use the protected `mysqldump` procedure below for those deployments so database
+credentials remain in an operator-managed secret mount.
+
 ### MySQL or MariaDB
 
 Use a protected client option file or secret mount. Do not put the database

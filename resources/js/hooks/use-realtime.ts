@@ -76,14 +76,12 @@ export function useRealtime({
     onRefresh,
     pollInterval = 15_000,
 }: UseRealtimeOptions): RealtimeStatus {
-    const [status, setStatus] = useState<RealtimeStatus>(
-        enabled ? "connecting" : "disabled",
-    );
+    const [status, setStatus] = useState<RealtimeStatus>(enabled ? "connecting" : "disabled");
     const onEventEvent = useEffectEvent(onEvent);
     const onRefreshEvent = useEffectEvent(onRefresh);
 
     useEffect(() => {
-        if (!enabled || channel === "") {
+        if (!enabled) {
             setStatus("disabled");
 
             return;
@@ -133,6 +131,16 @@ export function useRealtime({
             pollTimer = null;
         };
 
+        if (channel === "") {
+            setStatus("polling");
+            startPolling();
+
+            return () => {
+                disposed = true;
+                stopPolling();
+            };
+        }
+
         const handleConnectionChange = (connection: ConnectionStatus): void => {
             if (disposed) {
                 return;
@@ -170,9 +178,7 @@ export function useRealtime({
             };
         }
 
-        const unsubscribeConnection = echo.connector.onConnectionChange(
-            handleConnectionChange,
-        );
+        const unsubscribeConnection = echo.connector.onConnectionChange(handleConnectionChange);
         const realtimeChannel =
             channelType === "private" ? echo.private(channel) : echo.channel(channel);
 

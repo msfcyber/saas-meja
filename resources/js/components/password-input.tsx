@@ -24,12 +24,12 @@ export default function PasswordInput({
                 onClick={() => setShowPassword((prev) => !prev)}
                 className="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute inset-y-0 right-0 flex items-center rounded-r-md px-3 focus-visible:ring-[3px] focus-visible:outline-none"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
-                tabIndex={-1}
+                aria-pressed={showPassword}
             >
                 {showPassword ? (
-                    <EyeOff className="size-4" />
+                    <EyeOff className="size-4" aria-hidden="true" />
                 ) : (
-                    <Eye className="size-4" />
+                    <Eye className="size-4" aria-hidden="true" />
                 )}
             </button>
         </div>

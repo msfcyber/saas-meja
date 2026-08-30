@@ -135,6 +135,8 @@ const formatTime = (value: string | null | undefined) => {
         : new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit" }).format(date);
 };
 
+const TRACKING_REQUEST_TIMEOUT_MS = 15_000;
+
 function isOrderEvent(payload: unknown): payload is { order: CustomerOrder } {
     if (typeof payload !== "object" || payload === null || !("order" in payload)) {
         return false;
@@ -154,6 +156,8 @@ export default function Tracking({ access, order, realtime }: Props) {
     const [liveOrder, setLiveOrder] = useState<CustomerOrder | null>(order ?? null);
     const [paymentStarting, setPaymentStarting] = useState(false);
     const [paymentError, setPaymentError] = useState<string | null>(null);
+    const [trackingError, setTrackingError] = useState<string | null>(null);
+    const [trackingRetrying, setTrackingRetrying] = useState(false);
     const [statusAnnouncement, setStatusAnnouncement] = useState("");
     const announcedStatus = useRef<string | null>(order?.status ?? null);
 
@@ -177,20 +181,53 @@ export default function Tracking({ access, order, realtime }: Props) {
             return;
         }
 
-        const response = await fetch(realtime.poll_url, {
-            headers: { Accept: "application/json" },
-            credentials: "same-origin",
-            cache: "no-store",
-        });
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), TRACKING_REQUEST_TIMEOUT_MS);
 
-        if (!response.ok) {
-            throw new Error("Order tracking tidak dapat diperbarui.");
-        }
+        try {
+            const response = await fetch(realtime.poll_url, {
+                headers: { Accept: "application/json" },
+                credentials: "same-origin",
+                cache: "no-store",
+                signal: controller.signal,
+            });
 
-        const body = (await response.json()) as { order?: CustomerOrder };
+            if (!response.ok) {
+                throw new Error("Order tracking tidak dapat diperbarui.");
+            }
 
-        if (body.order) {
+            const body = (await response.json()) as { order?: CustomerOrder };
+
+            if (!body.order) {
+                throw new Error("Data order belum tersedia.");
+            }
+
             setLiveOrder(body.order);
+            setTrackingError(null);
+        } catch (exception) {
+            const message =
+                exception instanceof Error && exception.name === "AbortError"
+                    ? "Koneksi terlalu lama. Coba perbarui status lagi."
+                    : exception instanceof Error
+                      ? exception.message
+                      : "Order tracking tidak dapat diperbarui.";
+
+            setTrackingError(message);
+            throw exception;
+        } finally {
+            window.clearTimeout(timeout);
+        }
+    }
+
+    async function retryTracking(): Promise<void> {
+        setTrackingRetrying(true);
+
+        try {
+            await refreshOrder();
+        } catch {
+            // The error state already contains the actionable message.
+        } finally {
+            setTrackingRetrying(false);
         }
     }
 
@@ -226,7 +263,7 @@ export default function Tracking({ access, order, realtime }: Props) {
     }
 
     const realtimeStatus = useRealtime({
-        enabled: Boolean(realtime?.channel && realtime?.poll_url),
+        enabled: Boolean(realtime?.poll_url),
         channel: realtime?.channel ?? "",
         channelType: "public",
         event: ".order.status.updated",
@@ -275,7 +312,50 @@ export default function Tracking({ access, order, realtime }: Props) {
         );
     }
 
-    const displayOrder = liveOrder ?? demoOrder;
+    if (access?.valid && !liveOrder) {
+        return (
+            <>
+                <Head title="Tracking belum tersedia" />
+                <div className="min-h-screen bg-background">
+                    <CustomerHeader minimal />
+                    <main className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-xl items-center px-4 py-10 sm:px-6">
+                        <section className="w-full rounded-[1.75rem] border bg-card p-7 text-center shadow-sm sm:p-10">
+                            <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700">
+                                <Clock3 className="size-8" aria-hidden="true" />
+                            </div>
+                            <p className="mt-6 text-xs font-bold tracking-[0.16em] text-primary uppercase">
+                                Tracking order
+                            </p>
+                            <h1 className="font-display mt-2 text-3xl font-bold tracking-tight">
+                                Status belum tersedia
+                            </h1>
+                            <p
+                                className="mt-3 text-sm leading-6 text-muted-foreground"
+                                role="alert"
+                            >
+                                {trackingError ??
+                                    "Data order belum tersedia. Coba perbarui halaman ini."}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => void retryTracking()}
+                                disabled={trackingRetrying || !realtime?.poll_url}
+                                className="mt-7 inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {trackingRetrying ? "Memperbarui..." : "Coba lagi"}
+                            </button>
+                        </section>
+                    </main>
+                </div>
+            </>
+        );
+    }
+
+    const displayOrder = access === undefined ? (liveOrder ?? demoOrder) : liveOrder;
+
+    if (!displayOrder) {
+        return null;
+    }
     const copy = statusCopy[displayOrder.status] ?? {
         label: displayOrder.status_label,
         headline: "Status pesanan diperbarui.",
@@ -324,13 +404,15 @@ export default function Tracking({ access, order, realtime }: Props) {
                                 <span>
                                     {displayOrder.payment_status === "pending"
                                         ? "Pembayaran menunggu verifikasi server"
-                                        : !realtime?.channel
-                                          ? "Status diperbarui otomatis"
-                                          : realtimeStatus === "connected"
-                                            ? "Status diperbarui realtime"
-                                            : realtimeStatus === "offline"
-                                              ? "Koneksi realtime terputus, mencoba lagi"
-                                              : "Status diperbarui berkala"}
+                                        : !realtime?.poll_url
+                                          ? "Status tidak diperbarui otomatis"
+                                          : !realtime.channel
+                                            ? "Status diperbarui berkala"
+                                            : realtimeStatus === "connected"
+                                              ? "Status diperbarui realtime"
+                                              : realtimeStatus === "offline"
+                                                ? "Koneksi realtime terputus, mencoba lagi"
+                                                : "Status diperbarui berkala"}
                                 </span>
                             </div>
                         </div>
@@ -338,6 +420,19 @@ export default function Tracking({ access, order, realtime }: Props) {
                     <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
                         {statusAnnouncement}
                     </div>
+                    {trackingError && realtime?.poll_url && (
+                        <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+                            <p role="alert">{trackingError}</p>
+                            <button
+                                type="button"
+                                onClick={() => void retryTracking()}
+                                disabled={trackingRetrying}
+                                className="min-h-10 shrink-0 rounded-full border border-amber-400 px-4 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {trackingRetrying ? "Memperbarui..." : "Coba lagi"}
+                            </button>
+                        </div>
+                    )}
 
                     <section className="mt-6 rounded-[1.5rem] border bg-card p-6 sm:p-8">
                         <h2 className="font-display text-2xl font-bold">Perjalanan pesanan</h2>
@@ -382,7 +477,9 @@ export default function Tracking({ access, order, realtime }: Props) {
                                                 </p>
                                                 {active && (
                                                     <p className="mt-1 text-xs text-primary">
-                                                        Diperbarui otomatis
+                                                        {realtime?.poll_url
+                                                            ? "Diperbarui otomatis"
+                                                            : "Periksa kembali nanti"}
                                                     </p>
                                                 )}
                                             </div>

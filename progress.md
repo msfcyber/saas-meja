@@ -13,6 +13,8 @@ Terakhir diperbarui: 30 Agustus 2026
 - [x] Live order board: filter status, detail item, dan transisi status order berbasis database.
 - [x] Pengelolaan produk: kategori, pencarian, harga, status tersedia/habis, dan aksi produk.
 - [x] Pengelolaan meja: zona, status, pratinjau QR, download, cetak, dan regenerasi.
+- [x] Pengelolaan outlet: identitas lokasi, status aktif/order, zona waktu, pajak default, dan limit plan.
+- [x] Pengelolaan staf: membership tenant, role operasional, status aktif, audit, dan proteksi owner.
 - [x] Branding dan lokalisasi halaman login/register utama.
 
 Beberapa halaman marketing dan fitur realtime/notifikasi masih menggunakan data demo atau fallback prototype sampai backend domainnya tersedia.
@@ -107,12 +109,15 @@ Beberapa halaman marketing dan fitur realtime/notifikasi masih menggunakan data 
 - [x] Pastikan order hanya masuk produksi setelah payment terverifikasi `paid`.
 - [x] Buat struk digital dari snapshot order dan dukungan print/download.
 - [x] Implementasikan plan, trial, subscription, invoice SaaS, entitlement, owner billing Midtrans, dan limit meja.
-- [ ] Terapkan enforcement limit outlet dan staf saat flow CRUD resource tersebut tersedia.
+- [x] Terapkan enforcement limit outlet dan staf pada flow CRUD resource.
 - [x] Tambahkan laporan penjualan tenant-scoped dengan filter tanggal/outlet, agregasi payment, produk terlaris, dan transaksi terbaru.
 - [x] Tambahkan audit log tenant-aware untuk subscription, invoice, payment, role, dan tax setup.
 - [x] Tambahkan dashboard superadmin platform read-only, gate, dan command grant/revoke.
 - [x] Tambahkan correlation ID, structured request/lifecycle telemetry, health summary, dan runbook backup/recovery.
-- [ ] Tambahkan Horizon, integrasi metrik/alert produksi, automated backup, dan restore drill terjadwal.
+- [x] Tambahkan queue backlog monitoring terjadwal dan structured `QueueBusy` telemetry.
+- [x] Tambahkan opt-in SQLite backup command dengan asset archive, checksum, dan retention.
+- [x] Tambahkan backup verification dan isolated restore drill untuk SQLite.
+- [x] Tambahkan opt-in quarterly restore drill untuk backup SQLite terbaru.
 
 ## Quality Gate Berikutnya
 
