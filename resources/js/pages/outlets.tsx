@@ -1,5 +1,5 @@
 import { Head, useForm } from "@inertiajs/react";
-import { Building2, MapPin, Pencil, Phone, Plus, Store } from "lucide-react";
+import { Building2, MapPin, Pencil, Phone, Plus, ReceiptText, Store } from "lucide-react";
 import { useState } from "react";
 import InputError from "@/components/input-error";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,14 @@ type Outlet = {
     accepts_orders: boolean;
     products_count: number;
     tables_count: number;
+    tax_settings: TaxSettings;
+};
+
+type TaxSettings = {
+    tax_enabled: boolean;
+    tax_name: string | null;
+    tax_rate: string | null;
+    tax_inclusive: boolean;
 };
 
 type Timezone = {
@@ -46,11 +54,19 @@ type OutletForm = {
     accepts_orders: boolean;
 };
 
+type TaxSettingsForm = {
+    tax_enabled: boolean;
+    tax_name: string;
+    tax_rate: string;
+    tax_inclusive: boolean;
+};
+
 type Props = {
     outlets: Outlet[];
     timezones: Timezone[];
     usage: { current: number; limit: number | null };
     can_add: boolean;
+    can_manage_tax: boolean;
     limit_message: string | null;
 };
 
@@ -65,10 +81,27 @@ const emptyForm: OutletForm = {
     accepts_orders: true,
 };
 
-export default function Outlets({ outlets, timezones, usage, can_add, limit_message }: Props) {
+const emptyTaxForm: TaxSettingsForm = {
+    tax_enabled: false,
+    tax_name: "Pajak Restoran",
+    tax_rate: "10",
+    tax_inclusive: false,
+};
+
+export default function Outlets({
+    outlets,
+    timezones,
+    usage,
+    can_add,
+    can_manage_tax,
+    limit_message,
+}: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [editingOutlet, setEditingOutlet] = useState<Outlet | null>(null);
+    const [isTaxOpen, setIsTaxOpen] = useState(false);
+    const [editingTaxOutlet, setEditingTaxOutlet] = useState<Outlet | null>(null);
     const form = useForm<OutletForm>(emptyForm);
+    const taxForm = useForm<TaxSettingsForm>(emptyTaxForm);
     const subscriptionError = (form.errors as Record<string, string | undefined>).subscription;
 
     function openCreate() {
@@ -99,6 +132,23 @@ export default function Outlets({ outlets, timezones, usage, can_add, limit_mess
         form.clearErrors();
     }
 
+    function openTaxSettings(outlet: Outlet) {
+        setEditingTaxOutlet(outlet);
+        taxForm.setData("tax_enabled", outlet.tax_settings.tax_enabled);
+        taxForm.setData("tax_name", outlet.tax_settings.tax_name ?? "Pajak Restoran");
+        taxForm.setData("tax_rate", outlet.tax_settings.tax_rate ?? "10");
+        taxForm.setData("tax_inclusive", outlet.tax_settings.tax_inclusive);
+        taxForm.clearErrors();
+        setIsTaxOpen(true);
+    }
+
+    function closeTaxDialog() {
+        setIsTaxOpen(false);
+        setEditingTaxOutlet(null);
+        taxForm.reset();
+        taxForm.clearErrors();
+    }
+
     function submit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
@@ -114,6 +164,19 @@ export default function Outlets({ outlets, timezones, usage, can_add, limit_mess
         form.post("/outlets", {
             preserveScroll: true,
             onSuccess: closeDialog,
+        });
+    }
+
+    function submitTaxSettings(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+
+        if (!editingTaxOutlet) {
+            return;
+        }
+
+        taxForm.patch(`/outlets/${editingTaxOutlet.id}/tax-settings`, {
+            preserveScroll: true,
+            onSuccess: closeTaxDialog,
         });
     }
 
@@ -214,7 +277,7 @@ export default function Outlets({ outlets, timezones, usage, can_add, limit_mess
                                 key={outlet.id}
                                 className="rounded-[1.5rem] border bg-card p-5 sm:p-6"
                             >
-                                <div className="flex items-start justify-between gap-4">
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                     <div className="min-w-0">
                                         <div className="flex flex-wrap items-center gap-2">
                                             <span className="rounded-full bg-secondary px-3 py-1 text-xs font-bold tracking-wide text-primary">
@@ -233,17 +296,29 @@ export default function Outlets({ outlets, timezones, usage, can_add, limit_mess
                                             {outlet.timezone} · {outlet.currency}
                                         </p>
                                     </div>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="min-h-10 rounded-full"
-                                        onClick={() => openEdit(outlet)}
-                                    >
-                                        <Pencil aria-hidden="true" /> Edit
-                                    </Button>
+                                    <div className="flex flex-wrap gap-2 sm:justify-end">
+                                        {can_manage_tax && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="min-h-10 rounded-full"
+                                                onClick={() => openTaxSettings(outlet)}
+                                            >
+                                                <ReceiptText aria-hidden="true" /> Pajak
+                                            </Button>
+                                        )}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="min-h-10 rounded-full"
+                                            onClick={() => openEdit(outlet)}
+                                        >
+                                            <Pencil aria-hidden="true" /> Edit
+                                        </Button>
+                                    </div>
                                 </div>
 
-                                <div className="mt-5 grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
+                                <div className="mt-5 grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
                                     <div className="flex items-start gap-2">
                                         <MapPin
                                             className="mt-0.5 size-4 shrink-0"
@@ -257,6 +332,17 @@ export default function Outlets({ outlets, timezones, usage, can_add, limit_mess
                                             aria-hidden="true"
                                         />
                                         <span>{outlet.phone || "Nomor telepon belum diisi"}</span>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                        <ReceiptText
+                                            className="mt-0.5 size-4 shrink-0"
+                                            aria-hidden="true"
+                                        />
+                                        <span>
+                                            {outlet.tax_settings.tax_enabled
+                                                ? `${outlet.tax_settings.tax_name ?? "Pajak"} ${outlet.tax_settings.tax_rate}%${outlet.tax_settings.tax_inclusive ? " · termasuk pajak" : ""}`
+                                                : "Pajak tidak aktif"}
+                                        </span>
                                     </div>
                                 </div>
 
@@ -464,6 +550,148 @@ export default function Outlets({ outlets, timezones, usage, can_add, limit_mess
                             </Button>
                             <Button type="submit" disabled={form.processing}>
                                 {form.processing ? "Menyimpan..." : "Simpan outlet"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isTaxOpen} onOpenChange={(open) => !open && closeTaxDialog()}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
+                            {editingTaxOutlet?.name ?? "Outlet"}
+                        </p>
+                        <DialogTitle>Pengaturan pajak</DialogTitle>
+                        <DialogDescription>
+                            Atur pajak yang digunakan pada checkout outlet ini.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form onSubmit={submitTaxSettings} className="grid gap-4">
+                        <div className="grid gap-3 rounded-xl border bg-muted/30 p-4">
+                            <div className="flex items-start gap-3 text-sm">
+                                <Checkbox
+                                    id="outlet-tax-enabled"
+                                    checked={taxForm.data.tax_enabled}
+                                    onCheckedChange={(checked) =>
+                                        taxForm.setData("tax_enabled", checked === true)
+                                    }
+                                    className="mt-0.5 size-5"
+                                    aria-invalid={Boolean(taxForm.errors.tax_enabled)}
+                                    aria-describedby={
+                                        taxForm.errors.tax_enabled
+                                            ? "outlet-tax-enabled-error"
+                                            : undefined
+                                    }
+                                />
+                                <div className="grid gap-1.5">
+                                    <Label
+                                        htmlFor="outlet-tax-enabled"
+                                        className="cursor-pointer font-semibold"
+                                    >
+                                        Aktifkan pajak untuk outlet ini
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Checkout akan menghitung pajak berdasarkan tarif ini.
+                                    </p>
+                                </div>
+                            </div>
+                            <InputError
+                                id="outlet-tax-enabled-error"
+                                message={taxForm.errors.tax_enabled}
+                            />
+                        </div>
+
+                        {taxForm.data.tax_enabled && (
+                            <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="outlet-tax-name">Nama pajak</Label>
+                                    <Input
+                                        id="outlet-tax-name"
+                                        value={taxForm.data.tax_name}
+                                        onChange={(event) =>
+                                            taxForm.setData("tax_name", event.target.value)
+                                        }
+                                        placeholder="Pajak Restoran"
+                                        required
+                                        aria-invalid={Boolean(taxForm.errors.tax_name)}
+                                        aria-describedby={
+                                            taxForm.errors.tax_name
+                                                ? "outlet-tax-name-error"
+                                                : undefined
+                                        }
+                                    />
+                                    <InputError
+                                        id="outlet-tax-name-error"
+                                        message={taxForm.errors.tax_name}
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="outlet-tax-rate">Tarif pajak (%)</Label>
+                                    <Input
+                                        id="outlet-tax-rate"
+                                        type="text"
+                                        inputMode="decimal"
+                                        pattern="[0-9]+(\\.[0-9]{1,2})?"
+                                        value={taxForm.data.tax_rate}
+                                        onChange={(event) =>
+                                            taxForm.setData("tax_rate", event.target.value)
+                                        }
+                                        placeholder="10 atau 10.5"
+                                        required
+                                        aria-invalid={Boolean(taxForm.errors.tax_rate)}
+                                        aria-describedby={
+                                            taxForm.errors.tax_rate
+                                                ? "outlet-tax-rate-error"
+                                                : undefined
+                                        }
+                                    />
+                                    <InputError
+                                        id="outlet-tax-rate-error"
+                                        message={taxForm.errors.tax_rate}
+                                    />
+                                </div>
+                                <div className="flex items-start gap-3 sm:col-span-2">
+                                    <Checkbox
+                                        id="outlet-tax-inclusive"
+                                        checked={taxForm.data.tax_inclusive}
+                                        onCheckedChange={(checked) =>
+                                            taxForm.setData("tax_inclusive", checked === true)
+                                        }
+                                        className="mt-0.5 size-5"
+                                        aria-invalid={Boolean(taxForm.errors.tax_inclusive)}
+                                        aria-describedby={
+                                            taxForm.errors.tax_inclusive
+                                                ? "outlet-tax-inclusive-error"
+                                                : undefined
+                                        }
+                                    />
+                                    <div className="grid gap-1.5">
+                                        <Label
+                                            htmlFor="outlet-tax-inclusive"
+                                            className="cursor-pointer font-semibold"
+                                        >
+                                            Harga menu sudah termasuk pajak
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Nonaktifkan jika pajak ditambahkan setelah subtotal.
+                                        </p>
+                                    </div>
+                                </div>
+                                <InputError
+                                    id="outlet-tax-inclusive-error"
+                                    message={taxForm.errors.tax_inclusive}
+                                />
+                            </div>
+                        )}
+
+                        <DialogFooter>
+                            <Button type="button" variant="secondary" onClick={closeTaxDialog}>
+                                Batal
+                            </Button>
+                            <Button type="submit" disabled={taxForm.processing}>
+                                {taxForm.processing ? "Menyimpan..." : "Simpan pajak"}
                             </Button>
                         </DialogFooter>
                     </form>

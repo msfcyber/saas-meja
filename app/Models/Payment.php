@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonImmutable|null $paid_at
  * @property CarbonImmutable|null $last_webhook_at
  * @property array<string, mixed>|null $metadata
+ * @property int|null $gateway_credential_id
  */
 #[Fillable([
     'tenant_id',
@@ -28,6 +29,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'amount',
     'currency',
     'provider',
+    'gateway_credential_id',
     'provider_reference',
     'expires_at',
     'paid_at',
@@ -55,6 +57,12 @@ class Payment extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    /** @return BelongsTo<PaymentGatewayCredential, $this> */
+    public function gatewayCredential(): BelongsTo
+    {
+        return $this->belongsTo(PaymentGatewayCredential::class, 'gateway_credential_id');
     }
 
     protected function casts(): array

@@ -48,7 +48,7 @@ final class PaymentLifecycleService
         $expired = 0;
 
         foreach ($paymentIds as $paymentId) {
-            $payment = Payment::withoutGlobalScopes()->find($paymentId);
+            $payment = Payment::withoutGlobalScopes()->whereKey($paymentId)->first();
 
             if ($payment !== null && $this->expireIfDue($payment)) {
                 $expired++;

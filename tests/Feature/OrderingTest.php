@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\Outlet;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
+use App\Models\PaymentGatewayCredential;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\TableQrToken;
@@ -23,9 +24,16 @@ use Inertia\Testing\AssertableInertia as Assert;
 /**
  * @return array{tenant: Tenant, outlet: Outlet, product: Product, variant: ProductVariant, option: ModifierOption, token: string}
  */
-function createOrderingWorkspace(): array
+function createOrderingWorkspace(bool $withGatewayCredential = false): array
 {
     $tenant = Tenant::factory()->withTrialSubscription()->create();
+
+    if ($withGatewayCredential) {
+        PaymentGatewayCredential::factory()->for($tenant)->create([
+            'secret' => 'tenant-midtrans-key',
+        ]);
+    }
+
     $outlet = Outlet::factory()->for($tenant)->create(['accepts_orders' => true]);
     $category = Category::factory()->for($outlet)->create(['is_active' => true]);
     $product = Product::factory()->for($category)->create([
@@ -161,14 +169,13 @@ test('repeating a checkout with the same idempotency key returns the original or
 });
 
 test('a guest checkout starts an idempotent Midtrans Snap session after the order is stored', function () {
-    config(['payments.midtrans.server_key' => 'SB-Mid-server-key']);
     Http::fake([
         'https://app.sandbox.midtrans.com/snap/v1/transactions' => Http::response([
             'token' => 'snap-token-123',
             'redirect_url' => 'https://app.sandbox.midtrans.com/snap/v2/vtweb/snap-token-123',
         ]),
     ]);
-    $workspace = createOrderingWorkspace();
+    $workspace = createOrderingWorkspace(true);
     $orderResponse = $this->postJson(route('public.orders.store'), orderingPayload($workspace))->assertCreated();
     $paymentResponse = $this->postJson(route('public.orders.payment.start', [
         'accessToken' => $orderResponse->json('access_token'),
@@ -180,8 +187,13 @@ test('a guest checkout starts an idempotent Midtrans Snap session after the orde
 
     $order = createOrder($orderResponse);
     $payment = Payment::withoutGlobalScopes()->where('order_id', $order->id)->firstOrFail();
+    $credential = PaymentGatewayCredential::withoutGlobalScopes()
+        ->where('tenant_id', $workspace['tenant']->id)
+        ->where('provider', 'midtrans')
+        ->firstOrFail();
 
     expect($payment->provider)->toBe('midtrans')
+        ->and($payment->gateway_credential_id)->toBe($credential->id)
         ->and($payment->provider_reference)->toBe('meja-payment-'.$payment->id)
         ->and($payment->metadata)->toMatchArray([
             'midtrans' => [
@@ -190,6 +202,7 @@ test('a guest checkout starts an idempotent Midtrans Snap session after the orde
             ],
         ]);
     Http::assertSent(fn (Request $request) => $request->url() === 'https://app.sandbox.midtrans.com/snap/v1/transactions'
+        && $request->header('Authorization') === ['Basic '.base64_encode('tenant-midtrans-key:')]
         && $request->data()['transaction_details'] === [
             'order_id' => 'meja-payment-'.$payment->id,
             'gross_amount' => $payment->amount,
@@ -205,7 +218,6 @@ test('a guest checkout starts an idempotent Midtrans Snap session after the orde
 });
 
 test('a guest checkout keeps its pending payment when Midtrans is not configured', function () {
-    config(['payments.midtrans.server_key' => null]);
     $workspace = createOrderingWorkspace();
     $orderResponse = $this->postJson(route('public.orders.store'), orderingPayload($workspace))->assertCreated();
 
@@ -237,14 +249,13 @@ test('payment expiry command marks overdue payments and orders as expired', func
 });
 
 test('an expired payment creates a replacement for the same order', function () {
-    config(['payments.midtrans.server_key' => 'SB-Mid-server-key']);
     Http::fake([
         'https://app.sandbox.midtrans.com/snap/v1/transactions' => Http::response([
             'token' => 'replacement-snap-token',
             'redirect_url' => 'https://app.sandbox.midtrans.com/snap/v2/vtweb/replacement-snap-token',
         ]),
     ]);
-    $workspace = createOrderingWorkspace();
+    $workspace = createOrderingWorkspace(true);
     $response = $this->postJson(route('public.orders.store'), orderingPayload($workspace))->assertCreated();
     $order = createOrder($response);
     $expiredPayment = Payment::withoutGlobalScopes()->where('order_id', $order->id)->firstOrFail();
@@ -456,8 +467,7 @@ test('a late paid webhook cannot revive an expired payment or order', function (
 });
 
 test('a valid Midtrans notification marks payment and order as paid exactly once', function () {
-    config(['payments.midtrans.server_key' => 'SB-Mid-server-key']);
-    $workspace = createOrderingWorkspace();
+    $workspace = createOrderingWorkspace(true);
     $orderResponse = $this->postJson(route('public.orders.store'), orderingPayload($workspace))->assertCreated();
     $order = createOrder($orderResponse);
     $payment = Payment::withoutGlobalScopes()->where('order_id', $order->id)->firstOrFail();
@@ -475,7 +485,7 @@ test('a valid Midtrans notification marks payment and order as paid exactly once
     ];
     $payload['signature_key'] = hash(
         'sha512',
-        $payload['order_id'].$payload['status_code'].$grossAmount.'SB-Mid-server-key',
+        $payload['order_id'].$payload['status_code'].$grossAmount.'tenant-midtrans-key',
     );
 
     $this->postJson(route('payments.midtrans.webhook'), $payload)
@@ -494,8 +504,7 @@ test('a valid Midtrans notification marks payment and order as paid exactly once
 });
 
 test('payment reconciliation retrieves a Midtrans status and applies it through the webhook state machine', function () {
-    config(['payments.midtrans.server_key' => 'SB-Mid-server-key']);
-    $workspace = createOrderingWorkspace();
+    $workspace = createOrderingWorkspace(true);
     $orderResponse = $this->postJson(route('public.orders.store'), orderingPayload($workspace))->assertCreated();
     $order = createOrder($orderResponse);
     $payment = Payment::withoutGlobalScopes()->where('order_id', $order->id)->firstOrFail();
@@ -515,7 +524,7 @@ test('payment reconciliation retrieves a Midtrans status and applies it through 
     ];
     $statusPayload['signature_key'] = hash(
         'sha512',
-        $statusPayload['order_id'].$statusPayload['status_code'].$grossAmount.'SB-Mid-server-key',
+        $statusPayload['order_id'].$statusPayload['status_code'].$grossAmount.'tenant-midtrans-key',
     );
     Http::fake([
         'https://api.sandbox.midtrans.com/v2/*/status' => Http::response($statusPayload),
@@ -533,8 +542,7 @@ test('payment reconciliation retrieves a Midtrans status and applies it through 
 });
 
 test('a Midtrans notification rejects an invalid signature without changing state', function () {
-    config(['payments.midtrans.server_key' => 'SB-Mid-server-key']);
-    $workspace = createOrderingWorkspace();
+    $workspace = createOrderingWorkspace(true);
     $orderResponse = $this->postJson(route('public.orders.store'), orderingPayload($workspace))->assertCreated();
     $order = createOrder($orderResponse);
     $payment = Payment::withoutGlobalScopes()->where('order_id', $order->id)->firstOrFail();

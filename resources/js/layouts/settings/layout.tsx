@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import type { PropsWithChildren } from 'react';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
@@ -8,9 +8,14 @@ import { cn, toUrl } from '@/lib/utils';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
-import type { NavItem } from '@/types';
+import type { NavItem, TenancyContext } from '@/types';
 
-const sidebarNavItems: NavItem[] = [
+type SettingsNavItem = NavItem & {
+    permission?: string;
+    ownerOnly?: boolean;
+};
+
+const sidebarNavItems: SettingsNavItem[] = [
     {
         title: 'Profile',
         href: edit(),
@@ -26,10 +31,28 @@ const sidebarNavItems: NavItem[] = [
         href: editAppearance(),
         icon: null,
     },
+    {
+        title: 'Gateway',
+        href: '/settings/gateway',
+        icon: null,
+        permission: 'gateway.manage',
+        ownerOnly: true,
+    },
 ];
+
+type PageProps = {
+    tenancy: TenancyContext;
+};
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
     const { isCurrentOrParentUrl } = useCurrentUrl();
+    const { tenancy } = usePage<PageProps>().props;
+    const visibleNavItems = sidebarNavItems.filter(
+        (item) =>
+            item.permission === undefined ||
+            (tenancy.permissions.includes(item.permission) &&
+                (!item.ownerOnly || tenancy.is_owner)),
+    );
 
     return (
         <div className="px-4 py-6">
@@ -44,7 +67,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                         className="flex flex-col space-y-1 space-x-0"
                         aria-label="Settings"
                     >
-                        {sidebarNavItems.map((item) => (
+                        {visibleNavItems.map((item) => (
                             <Button
                                 key={toUrl(item.href)}
                                 size="sm"

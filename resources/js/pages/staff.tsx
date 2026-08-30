@@ -21,6 +21,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+
+type OutletOption = {
+    id: number;
+    name: string;
+    code: string;
+    is_active: boolean;
+};
 
 type StaffMember = {
     id: number;
@@ -30,6 +38,7 @@ type StaffMember = {
     is_owner: boolean;
     role: string | null;
     role_label: string;
+    outlets: OutletOption[];
 };
 
 type RoleOption = {
@@ -42,10 +51,12 @@ type StaffForm = {
     email: string;
     role: string;
     status: 'active' | 'inactive';
+    outlet_ids: number[];
 };
 
 type Props = {
     staff: StaffMember[];
+    outlets: OutletOption[];
     roles: RoleOption[];
     usage: { current: number; limit: number | null };
     can_add: boolean;
@@ -57,10 +68,12 @@ const emptyForm: StaffForm = {
     email: '',
     role: 'cashier',
     status: 'active',
+    outlet_ids: [],
 };
 
 export default function Staff({
     staff,
+    outlets,
     roles,
     usage,
     can_add,
@@ -87,6 +100,7 @@ export default function Staff({
         form.setData('email', member.email);
         form.setData('role', member.role ?? 'cashier');
         form.setData('status', member.status);
+        form.setData('outlet_ids', member.outlets.map((outlet) => outlet.id));
         form.clearErrors();
         setIsOpen(true);
     }
@@ -133,6 +147,15 @@ export default function Staff({
                 });
             },
         });
+    }
+
+    function toggleOutlet(outletId: number, checked: boolean) {
+        form.setData(
+            'outlet_ids',
+            checked
+                ? [...form.data.outlet_ids, outletId]
+                : form.data.outlet_ids.filter((id) => id !== outletId),
+        );
     }
 
     return (
@@ -219,7 +242,7 @@ export default function Staff({
                                 Model akses
                             </p>
                             <p className="mt-1 text-xl font-bold">
-                                Tenant-wide
+                                Per outlet
                             </p>
                         </div>
                     </article>
@@ -231,8 +254,8 @@ export default function Staff({
                             Anggota workspace
                         </h2>
                         <p className="text-muted-foreground mt-1 text-sm">
-                            Owner tidak dapat dihapus atau diturunkan perannya
-                            dari halaman ini.
+                            Owner memiliki akses ke seluruh outlet aktif dan
+                            tidak dapat diubah dari halaman ini.
                         </p>
                     </div>
                     <div className="divide-y">
@@ -291,6 +314,28 @@ export default function Staff({
                                                     ? 'Owner'
                                                     : member.role_label}
                                             </p>
+                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                {member.is_owner ? (
+                                                    <span className="bg-secondary text-secondary-foreground rounded-full px-2 py-1 text-[11px] font-medium">
+                                                        Semua outlet aktif
+                                                    </span>
+                                                ) : member.outlets.length > 0 ? (
+                                                    member.outlets.map((outlet) => (
+                                                        <span
+                                                            key={outlet.id}
+                                                            className={`rounded-full px-2 py-1 text-[11px] font-medium ${outlet.is_active ? 'bg-secondary text-secondary-foreground' : 'bg-muted text-muted-foreground'}`}
+                                                        >
+                                                            {outlet.name}
+                                                            {!outlet.is_active &&
+                                                                ' (nonaktif)'}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-muted-foreground text-[11px]">
+                                                        Belum ada outlet
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                     {!member.is_owner && (
@@ -452,6 +497,66 @@ export default function Staff({
                                 message={form.errors.role}
                             />
                         </div>
+
+                        <fieldset
+                            className="grid gap-2"
+                            aria-describedby={
+                                form.errors.outlet_ids
+                                    ? 'staff-outlets-error'
+                                    : 'staff-outlets-hint'
+                            }
+                        >
+                            <legend className="text-sm font-medium">
+                                Outlet yang dapat diakses
+                            </legend>
+                            <p
+                                id="staff-outlets-hint"
+                                className="text-muted-foreground text-xs"
+                            >
+                                Pilih minimal satu outlet aktif untuk staf ini.
+                            </p>
+                            <div className="grid gap-2 rounded-xl border p-3 sm:grid-cols-2">
+                                {outlets.map((outlet) => {
+                                    const checked = form.data.outlet_ids.includes(
+                                        outlet.id,
+                                    );
+
+                                    return (
+                                        <Label
+                                            key={outlet.id}
+                                            htmlFor={`staff-outlet-${outlet.id}`}
+                                            className="hover:bg-secondary/60 flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5"
+                                        >
+                                            <Checkbox
+                                                id={`staff-outlet-${outlet.id}`}
+                                                checked={checked}
+                                                onCheckedChange={(value) =>
+                                                    toggleOutlet(
+                                                        outlet.id,
+                                                        value === true,
+                                                    )
+                                                }
+                                                aria-invalid={Boolean(
+                                                    form.errors.outlet_ids,
+                                                )}
+                                            />
+                                            <span className="min-w-0">
+                                                <span className="block truncate text-sm font-medium">
+                                                    {outlet.name}
+                                                </span>
+                                                <span className="text-muted-foreground block text-xs">
+                                                    {outlet.code}
+                                                </span>
+                                            </span>
+                                        </Label>
+                                    );
+                                })}
+                            </div>
+                            <InputError
+                                id="staff-outlets-error"
+                                message={form.errors.outlet_ids}
+                            />
+                        </fieldset>
 
                         {editingStaff && (
                             <div className="grid gap-2">

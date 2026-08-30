@@ -42,7 +42,7 @@ class ResolveTenantContext
             $this->permissions->setPermissionsTeamId($tenant->getKey());
             $user->unsetRelation('roles')->unsetRelation('permissions');
 
-            $outlet = $this->resolveOutlet($request);
+            $outlet = $this->resolveOutlet($request, $tenant);
             $this->context->setOutlet($outlet);
 
             $request->attributes->set('tenant', $tenant);
@@ -80,9 +80,16 @@ class ResolveTenantContext
         return $query->orderBy('tenants.id')->first();
     }
 
-    private function resolveOutlet(Request $request): ?Outlet
+    private function resolveOutlet(Request $request, Tenant $tenant): ?Outlet
     {
-        $query = Outlet::query()->where('is_active', true);
+        $query = Outlet::withoutGlobalScopes()
+            ->where('tenant_id', $tenant->getKey())
+            ->where('is_active', true);
+
+        if ($tenant->membership?->is_owner !== true) {
+            $query->whereIn('id', $request->user()->assignedOutletsFor($tenant)->select('outlets.id'));
+        }
+
         $preferredId = $request->session()->get('active_outlet_id');
 
         if ($preferredId !== null) {

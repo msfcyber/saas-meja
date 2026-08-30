@@ -171,6 +171,7 @@ test('owner can create update and remove a staff member', function () {
             'name' => 'Kasir Sore',
             'email' => $staffEmail,
             'role' => 'cashier',
+            'outlet_ids' => [$workspace['outlet']->id],
         ])
         ->assertRedirect(route('staff'));
 
@@ -207,7 +208,8 @@ test('owner can create update and remove a staff member', function () {
             ->where('usage.current', 2)
             ->where('staff', fn (Collection $members): bool => $members->contains(
                 fn (mixed $member): bool => data_get($member, 'email') === $staff->email
-                    && data_get($member, 'role') === 'cashier',
+                    && data_get($member, 'role') === 'cashier'
+                    && data_get($member, 'outlets.0.id') === $workspace['outlet']->id,
             )),
         );
 
@@ -216,6 +218,7 @@ test('owner can create update and remove a staff member', function () {
         ->patch(route('staff.update', $staff), [
             'role' => 'admin',
             'status' => 'inactive',
+            'outlet_ids' => [$workspace['outlet']->id],
         ])
         ->assertRedirect(route('staff'));
 
@@ -242,6 +245,10 @@ test('owner can create update and remove a staff member', function () {
         ->assertRedirect(route('staff'));
 
     $this->assertDatabaseMissing('tenant_user', [
+        'tenant_id' => $workspace['tenant']->id,
+        'user_id' => $staff->id,
+    ]);
+    $this->assertDatabaseMissing('tenant_outlet_user', [
         'tenant_id' => $workspace['tenant']->id,
         'user_id' => $staff->id,
     ]);
@@ -276,6 +283,7 @@ test('staff creation and reactivation respect the active staff limit', function 
         ->post(route('staff.store'), [
             'email' => $staff->email,
             'role' => 'cashier',
+            'outlet_ids' => [$workspace['outlet']->id],
         ])
         ->assertRedirect(route('staff'))
         ->assertSessionHasErrors('subscription');

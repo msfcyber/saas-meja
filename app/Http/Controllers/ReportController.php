@@ -17,11 +17,20 @@ class ReportController extends Controller
         SalesReportService $reports,
     ): Response {
         $tenant = $context->tenantOrFail();
+        $isOwner = $tenant->membership?->is_owner === true;
+        $filters = $request->validated();
+
+        if (! $isOwner && empty($filters['outlet'])) {
+            $filters['outlet'] = $context->outletId();
+        }
 
         return Inertia::render('reports/sales', [
-            ...$reports->build($tenant, $request->validated()),
-            'outlets' => Outlet::query()
-                ->orderBy('name')
+            ...$reports->build($tenant, $filters),
+            'outlets' => ($isOwner
+                ? Outlet::withoutGlobalScopes()->where('tenant_id', $tenant->getKey())
+                : $request->user()->assignedOutletsFor($tenant))
+                ->where('outlets.is_active', true)
+                ->orderBy('outlets.name')
                 ->get(['id', 'name', 'code'])
                 ->map(fn (Outlet $outlet): array => [
                     'id' => $outlet->id,

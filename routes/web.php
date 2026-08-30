@@ -67,6 +67,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('outlets', [OutletController::class, 'index'])->middleware('permission:outlet.manage')->name('outlets');
         Route::post('outlets', [OutletController::class, 'store'])->middleware('permission:outlet.manage')->name('outlets.store');
         Route::patch('outlets/{outlet}', [OutletController::class, 'update'])->middleware('permission:outlet.manage')->name('outlets.update');
+        Route::patch('outlets/{outlet}/tax-settings', [OutletController::class, 'updateTaxSettings'])->middleware('permission:tax.manage')->name('outlets.tax-settings.update');
         Route::get('staff', [StaffController::class, 'index'])->middleware('permission:staff.manage')->name('staff');
         Route::post('staff', [StaffController::class, 'store'])->middleware('permission:staff.manage')->name('staff.store');
         Route::patch('staff/{staff}', [StaffController::class, 'update'])->middleware('permission:staff.manage')->name('staff.update');

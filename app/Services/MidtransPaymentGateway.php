@@ -8,23 +8,20 @@ use Illuminate\Support\Facades\Http;
 
 final class MidtransPaymentGateway implements PaymentGateway
 {
+    public function __construct(private readonly PaymentGatewayCredentialService $credentials) {}
+
     /**
      * @return array{provider: string, redirect_url: string, expires_at: string|null}
      */
     public function createCheckout(Payment $payment, Order $order, string $finishUrl): array
     {
+        $serverKey = $this->serverKey($payment);
         $metadata = $payment->metadata ?? [];
         $midtransMetadata = $metadata['midtrans'] ?? null;
         $existingUrl = is_array($midtransMetadata) ? ($midtransMetadata['redirect_url'] ?? null) : null;
 
         if (is_string($existingUrl) && $existingUrl !== '') {
             return $this->result($payment, $existingUrl);
-        }
-
-        $serverKey = config('payments.midtrans.server_key');
-
-        if (! is_string($serverKey) || trim($serverKey) === '') {
-            throw new PaymentGatewayException('Midtrans belum dikonfigurasi.');
         }
 
         if ($payment->provider_reference === null || $payment->provider_reference === '') {
@@ -103,7 +100,7 @@ final class MidtransPaymentGateway implements PaymentGateway
     /** @return array<string, mixed> */
     public function getStatus(Payment $payment): array
     {
-        $serverKey = $this->serverKey();
+        $serverKey = $this->serverKey($payment);
         $providerReference = (string) $payment->provider_reference;
 
         if ($providerReference === '') {
@@ -143,11 +140,12 @@ final class MidtransPaymentGateway implements PaymentGateway
         return $response;
     }
 
-    private function serverKey(): string
+    private function serverKey(Payment $payment): string
     {
-        $serverKey = config('payments.midtrans.server_key');
+        $credential = $this->credentials->forPayment($payment);
+        $serverKey = $credential->secret;
 
-        if (! is_string($serverKey) || trim($serverKey) === '') {
+        if ($serverKey === '') {
             throw new PaymentGatewayException('Midtrans belum dikonfigurasi.');
         }
 

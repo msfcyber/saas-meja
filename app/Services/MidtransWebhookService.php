@@ -2,13 +2,18 @@
 
 namespace App\Services;
 
+use App\Models\Payment;
+use App\Models\PaymentGatewayCredential;
 use Carbon\CarbonImmutable;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 final class MidtransWebhookService
 {
-    public function __construct(private readonly PaymentWebhookService $payments) {}
+    public function __construct(
+        private readonly PaymentWebhookService $payments,
+        private readonly PaymentGatewayCredentialService $credentials,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data
@@ -16,13 +21,9 @@ final class MidtransWebhookService
      */
     public function handle(array $data): array
     {
-        $serverKey = config('payments.midtrans.server_key');
-
-        if (! is_string($serverKey) || trim($serverKey) === '') {
-            throw new HttpException(503, 'Midtrans belum dikonfigurasi.');
-        }
-
-        $this->verifySignature($data, $serverKey);
+        [$payment, $credential] = $this->paymentCredential($data);
+        $this->verifySignature($data, $this->secret($credential));
+        $this->credentials->bind($payment, $credential);
 
         return $this->process($data);
     }
@@ -35,17 +36,60 @@ final class MidtransWebhookService
      */
     public function handleStatus(array $data): array
     {
-        $serverKey = config('payments.midtrans.server_key');
+        [$payment, $credential] = $this->paymentCredential($data);
 
-        if (! is_string($serverKey) || trim($serverKey) === '') {
+        if (array_key_exists('signature_key', $data)) {
+            $this->verifySignature($data, $this->secret($credential));
+        }
+
+        $this->credentials->bind($payment, $credential);
+
+        return $this->process($data);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{0: Payment, 1: PaymentGatewayCredential}
+     */
+    private function paymentCredential(array $data): array
+    {
+        $providerReference = (string) ($data['order_id'] ?? '');
+
+        if ($providerReference === '') {
+            throw ValidationException::withMessages([
+                'provider_reference' => 'Payment tidak ditemukan.',
+            ]);
+        }
+
+        $payment = Payment::withoutGlobalScopes()
+            ->where('provider', 'midtrans')
+            ->where('provider_reference', $providerReference)
+            ->first();
+
+        if ($payment === null) {
+            throw ValidationException::withMessages([
+                'provider_reference' => 'Payment tidak ditemukan.',
+            ]);
+        }
+
+        try {
+            $credential = $this->credentials->forPayment($payment, bind: false);
+        } catch (PaymentGatewayException $exception) {
+            throw new HttpException(503, $exception->getMessage(), $exception);
+        }
+
+        return [$payment, $credential];
+    }
+
+    private function secret(PaymentGatewayCredential $credential): string
+    {
+        $secret = $credential->secret;
+
+        if ($secret === '') {
             throw new HttpException(503, 'Midtrans belum dikonfigurasi.');
         }
 
-        if (array_key_exists('signature_key', $data)) {
-            $this->verifySignature($data, $serverKey);
-        }
-
-        return $this->process($data);
+        return $secret;
     }
 
     /** @param array<string, mixed> $data */

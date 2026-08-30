@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -46,6 +47,31 @@ class User extends Authenticatable implements PasskeyUser
             ->as('membership')
             ->withPivot(['status', 'is_owner', 'joined_at'])
             ->withTimestamps();
+    }
+
+    /** @return BelongsToMany<Outlet, $this, TenantOutletUser, 'assignment'> */
+    public function assignedOutlets(): BelongsToMany
+    {
+        return $this->belongsToMany(Outlet::class, 'tenant_outlet_user')
+            ->using(TenantOutletUser::class)
+            ->as('assignment')
+            ->withPivot('tenant_id')
+            ->withTimestamps()
+            ->withoutGlobalScopes();
+    }
+
+    /** @return BelongsToMany<Outlet, $this, TenantOutletUser, 'assignment'> */
+    public function assignedOutletsFor(Tenant $tenant): BelongsToMany
+    {
+        return $this->assignedOutlets()
+            ->wherePivot('tenant_id', $tenant->getKey())
+            ->withPivotValue('tenant_id', $tenant->getKey());
+    }
+
+    /** @return HasMany<PaymentGatewayCredential, $this> */
+    public function createdGatewayCredentials(): HasMany
+    {
+        return $this->hasMany(PaymentGatewayCredential::class, 'created_by');
     }
 
     /**

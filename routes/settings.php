@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\GatewayController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use Illuminate\Auth\Middleware\RequirePassword;
@@ -24,6 +25,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('user-password.update');
 
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
+
+    Route::get('settings/gateway', [GatewayController::class, 'edit'])
+        ->middleware('permission:gateway.manage')
+        ->name('gateway.edit');
+
+    Route::post('settings/gateway', [GatewayController::class, 'rotate'])
+        ->middleware('permission:gateway.manage')
+        ->name('gateway.rotate');
 });
 
 Route::get('.well-known/passkey-endpoints', function () {

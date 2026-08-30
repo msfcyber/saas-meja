@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Staff\StoreStaffRequest;
 use App\Http\Requests\Staff\UpdateStaffRequest;
+use App\Models\Outlet;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -11,6 +12,7 @@ use App\Services\AuditLogService;
 use App\Services\SubscriptionEntitlementService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -43,10 +45,16 @@ class StaffController extends Controller
 
         return Inertia::render('staff', [
             'staff' => $tenant->users()
+                ->with(['assignedOutlets' => fn ($query) => $query
+                    ->wherePivot('tenant_id', $tenant->getKey())
+                    ->orderBy('outlets.name')])
                 ->orderBy('name')
                 ->get()
-                ->map(function (User $staff): array {
+                ->map(function (User $staff) use ($tenant): array {
                     $role = $this->staffRole($staff);
+                    $outlets = $staff->membership->is_owner
+                        ? $this->tenantOutlets($tenant, activeOnly: true)
+                        : $staff->assignedOutlets;
 
                     return [
                         'id' => $staff->id,
@@ -56,8 +64,10 @@ class StaffController extends Controller
                         'is_owner' => (bool) $staff->membership->is_owner,
                         'role' => $role,
                         'role_label' => $this->roleLabel($role),
+                        'outlets' => $this->outletProps($outlets),
                     ];
                 })->values(),
+            'outlets' => $this->outletProps($this->tenantOutlets($tenant, activeOnly: true)),
             'roles' => collect(self::STAFF_ROLES)->map(fn (string $role): array => [
                 'value' => $role,
                 'label' => self::ROLE_LABELS[$role],
@@ -90,8 +100,9 @@ class StaffController extends Controller
 
         $attributes = $request->validated();
         $role = $this->tenantRole($tenant, $attributes['role']);
+        $outlets = $this->activeOutlets($tenant, $attributes['outlet_ids']);
 
-        $staff = DB::transaction(function () use ($tenant, $attributes, $role, $audits): User {
+        $staff = DB::transaction(function () use ($tenant, $attributes, $role, $outlets, $audits): User {
             $staff = User::query()->where('email', $attributes['email'])->first();
 
             if ($staff === null) {
@@ -120,6 +131,7 @@ class StaffController extends Controller
                 'joined_at' => now(),
             ]);
 
+            $staff->assignedOutletsFor($tenant)->sync($outlets->modelKeys());
             $this->syncRole($staff, $role);
 
             $audits->record('staff.added', [
@@ -130,6 +142,7 @@ class StaffController extends Controller
                     'email' => $staff->email,
                     'role' => $role->name,
                     'status' => 'active',
+                    ...$this->outletAuditValues($outlets),
                 ],
             ]);
 
@@ -158,6 +171,9 @@ class StaffController extends Controller
         $role = $this->tenantRole($tenant, $attributes['role']);
         $oldRole = $this->staffRole($staff);
         $oldStatus = (string) $membership->membership->status;
+        $outlets = $this->activeOutlets($tenant, $attributes['outlet_ids']);
+
+        abort_if($membership->membership->is_owner, 403);
 
         if ($oldStatus !== 'active' && $attributes['status'] === 'active'
             && ! $entitlements->canAdd($tenant, SubscriptionEntitlementService::LIMIT_STAFF)) {
@@ -166,11 +182,16 @@ class StaffController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($tenant, $staff, $role, $attributes, $audits, $oldRole, $oldStatus): void {
+        DB::transaction(function () use ($tenant, $staff, $role, $attributes, $outlets, $audits, $oldRole, $oldStatus): void {
+            $oldOutlets = $staff->assignedOutletsFor($tenant)
+                ->lockForUpdate()
+                ->get();
+
             $tenant->users()->updateExistingPivot($staff->getKey(), [
                 'status' => $attributes['status'],
             ]);
 
+            $staff->assignedOutletsFor($tenant)->sync($outlets->modelKeys());
             $this->syncRole($staff, $role);
 
             $audits->record('staff.updated', [
@@ -180,10 +201,12 @@ class StaffController extends Controller
                 'old_values' => [
                     'role' => $oldRole,
                     'status' => $oldStatus,
+                    ...$this->outletAuditValues($oldOutlets),
                 ],
                 'new_values' => [
                     'role' => $role->name,
                     'status' => $attributes['status'],
+                    ...$this->outletAuditValues($outlets),
                 ],
             ]);
         }, attempts: 3);
@@ -265,5 +288,45 @@ class StaffController extends Controller
     private function membership(Tenant $tenant, User $staff): ?User
     {
         return $tenant->users()->whereKey($staff->getKey())->first();
+    }
+
+    /** @param list<int> $outletIds */
+    private function activeOutlets(Tenant $tenant, array $outletIds): \Illuminate\Database\Eloquent\Collection
+    {
+        return Outlet::withoutGlobalScopes()
+            ->where('tenant_id', $tenant->getKey())
+            ->where('is_active', true)
+            ->whereIn('id', $outletIds)
+            ->orderBy('name')
+            ->get();
+    }
+
+    private function tenantOutlets(Tenant $tenant, bool $activeOnly): \Illuminate\Database\Eloquent\Collection
+    {
+        return Outlet::withoutGlobalScopes()
+            ->where('tenant_id', $tenant->getKey())
+            ->when($activeOnly, fn ($query) => $query->where('is_active', true))
+            ->orderBy('name')
+            ->get();
+    }
+
+    /** @param Collection<int, Outlet> $outlets */
+    private function outletProps(Collection $outlets): array
+    {
+        return $outlets->map(fn (Outlet $outlet): array => [
+            'id' => $outlet->id,
+            'name' => $outlet->name,
+            'code' => $outlet->code,
+            'is_active' => $outlet->is_active,
+        ])->values()->all();
+    }
+
+    /** @param Collection<int, Outlet> $outlets */
+    private function outletAuditValues(Collection $outlets): array
+    {
+        return [
+            'outlet_ids' => $outlets->modelKeys(),
+            'outlet_names' => $outlets->pluck('name')->values()->all(),
+        ];
     }
 }

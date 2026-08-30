@@ -38,6 +38,9 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $context = app(TenantContext::class);
+        $tenant = $context->tenant();
+        $user = $request->user();
+        $isTenantOwner = $user !== null && $tenant?->membership?->is_owner === true;
 
         return [
             ...parent::share($request),
@@ -46,7 +49,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'tenancy' => fn () => [
-                'tenant' => $context->tenant()?->only(['id', 'name', 'slug']),
+                'tenant' => $tenant?->only(['id', 'name', 'slug']),
                 'outlet' => $context->outlet()?->only(['id', 'name', 'code']),
                 'tenants' => $request->user()?->tenants()
                     ->wherePivot('status', 'active')
@@ -55,13 +58,18 @@ class HandleInertiaRequests extends Middleware
                     ->toArray() ?? [],
                 'outlets' => $context->tenant() === null
                     ? []
-                    : Outlet::query()
-                        ->where('is_active', true)
+                    : ($isTenantOwner
+                        ? Outlet::withoutGlobalScopes()
+                            ->where('tenant_id', $context->tenantId())
+                            ->where('is_active', true)
+                        : $request->user()->assignedOutletsFor($context->tenant())
+                            ->where('outlets.is_active', true))
                         ->orderBy('name')
                         ->get(['id', 'name', 'code'])
                         ->toArray(),
                 'roles' => $request->user()?->getRoleNames()->values()->all() ?? [],
                 'permissions' => $request->user()?->getAllPermissions()->pluck('name')->values()->all() ?? [],
+                'is_owner' => $isTenantOwner,
                 'platform_admin' => (bool) $request->user()?->is_platform_admin,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',

@@ -54,6 +54,12 @@ class Tenant extends Model
         return $this->hasMany(SaasInvoice::class);
     }
 
+    /** @return HasMany<PaymentGatewayCredential, $this> */
+    public function gatewayCredentials(): HasMany
+    {
+        return $this->hasMany(PaymentGatewayCredential::class);
+    }
+
     /** @return HasMany<AuditLog, $this> */
     public function auditLogs(): HasMany
     {

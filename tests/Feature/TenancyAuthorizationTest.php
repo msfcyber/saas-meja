@@ -159,6 +159,7 @@ test('outlet switching is limited to the active tenant', function () {
     $user = User::factory()->create();
     $active = createTenantMembership($user);
     $secondOutlet = Outlet::factory()->for($active['tenant'])->create();
+    $user->assignedOutletsFor($active['tenant'])->attach($secondOutlet);
     $foreign = createTenantMembership(User::factory()->create());
 
     $this->actingAs($user)
