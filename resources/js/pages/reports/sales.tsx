@@ -1,6 +1,7 @@
 import { Head, router } from "@inertiajs/react";
 import { BarChart3, CalendarRange, ReceiptText, TrendingUp } from "lucide-react";
 import { useState } from "react";
+import InputError from "@/components/input-error";
 import { Button } from "@/components/ui/button";
 
 type Outlet = { id: number; name: string; code: string };
@@ -69,14 +70,32 @@ export default function SalesReport({
     const [from, setFrom] = useState(filters.from);
     const [to, setTo] = useState(filters.to);
     const [outlet, setOutlet] = useState(filters.outlet?.toString() ?? "");
+    const [filterError, setFilterError] = useState<string | null>(null);
     const maxDailyAmount = Math.max(...dailySales.map((sale) => sale.amount), 1);
 
     function applyFilters(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
+
+        if (from && to && from > to) {
+            setFilterError("Tanggal mulai tidak boleh melewati tanggal selesai.");
+
+            return;
+        }
+
+        setFilterError(null);
         router.get(
             "/reports/sales",
             { from, to, outlet: outlet || undefined },
-            { preserveState: true, replace: true, preserveScroll: true },
+            {
+                preserveState: true,
+                replace: true,
+                preserveScroll: true,
+                onError: (errors) => {
+                    setFilterError(
+                        Object.values(errors)[0] ?? "Filter laporan tidak dapat diterapkan.",
+                    );
+                },
+            },
         );
     }
 
@@ -112,7 +131,12 @@ export default function SalesReport({
                         <input
                             type="date"
                             value={from}
-                            onChange={(event) => setFrom(event.target.value)}
+                            onChange={(event) => {
+                                setFrom(event.target.value);
+                                setFilterError(null);
+                            }}
+                            aria-invalid={Boolean(filterError)}
+                            aria-describedby={filterError ? "sales-filter-error" : undefined}
                             className="min-h-11 rounded-xl border bg-background px-3 text-sm font-semibold text-foreground"
                         />
                     </label>
@@ -121,7 +145,12 @@ export default function SalesReport({
                         <input
                             type="date"
                             value={to}
-                            onChange={(event) => setTo(event.target.value)}
+                            onChange={(event) => {
+                                setTo(event.target.value);
+                                setFilterError(null);
+                            }}
+                            aria-invalid={Boolean(filterError)}
+                            aria-describedby={filterError ? "sales-filter-error" : undefined}
                             className="min-h-11 rounded-xl border bg-background px-3 text-sm font-semibold text-foreground"
                         />
                     </label>
@@ -143,6 +172,11 @@ export default function SalesReport({
                     <Button type="submit" className="min-h-11 rounded-xl">
                         <CalendarRange aria-hidden="true" /> Terapkan
                     </Button>
+                    <InputError
+                        id="sales-filter-error"
+                        message={filterError ?? undefined}
+                        className="sm:col-span-full"
+                    />
                 </form>
 
                 <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -318,7 +352,10 @@ export default function SalesReport({
                                             <th scope="col" className="pb-3 font-semibold">
                                                 Payment
                                             </th>
-                                            <th scope="col" className="pb-3 text-right font-semibold">
+                                            <th
+                                                scope="col"
+                                                className="pb-3 text-right font-semibold"
+                                            >
                                                 Total
                                             </th>
                                         </tr>

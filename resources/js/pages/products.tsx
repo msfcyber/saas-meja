@@ -1,6 +1,7 @@
 import { Head, router, useForm } from "@inertiajs/react";
 import { ImageIcon, Plus, Search, SlidersHorizontal, Soup, Star } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import InputError from "@/components/input-error";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,6 +45,7 @@ type Props = {
 
 export default function Products({ categories, filters, products, summary }: Props) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [processingProductId, setProcessingProductId] = useState<number | null>(null);
     const [search, setSearch] = useState(filters.search);
     const form = useForm({
         name: "",
@@ -72,6 +74,25 @@ export default function Products({ categories, filters, products, summary }: Pro
                 setIsCreateOpen(false);
             },
         });
+    }
+
+    function toggleAvailability(product: Product) {
+        setProcessingProductId(product.id);
+        router.patch(
+            `/products/${product.id}/availability`,
+            { is_available: !product.is_available },
+            {
+                preserveScroll: true,
+                onFinish: () => setProcessingProductId(null),
+                onError: (errors) => {
+                    const message = Object.values(errors)[0];
+
+                    toast.error("Ketersediaan produk gagal diperbarui", {
+                        description: message ?? "Coba lagi dalam beberapa saat.",
+                    });
+                },
+            },
+        );
     }
 
     return (
@@ -241,13 +262,9 @@ export default function Products({ categories, filters, products, summary }: Pro
                                     </p>
                                     <button
                                         type="button"
-                                        onClick={() =>
-                                            router.patch(
-                                                `/products/${product.id}/availability`,
-                                                { is_available: !product.is_available },
-                                                { preserveScroll: true },
-                                            )
-                                        }
+                                        onClick={() => toggleAvailability(product)}
+                                        disabled={processingProductId !== null}
+                                        aria-busy={processingProductId === product.id}
                                         aria-pressed={product.is_available}
                                         aria-label={`${product.is_available ? "Tandai habis" : "Tandai tersedia"}: ${product.name}`}
                                         className="col-span-full flex min-h-10 items-center gap-2 rounded-full px-3 text-xs font-bold sm:col-auto sm:flex"

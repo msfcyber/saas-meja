@@ -137,6 +137,20 @@ const formatTime = (value: string | null | undefined) => {
 
 const TRACKING_REQUEST_TIMEOUT_MS = 15_000;
 
+async function fetchTrackingWithTimeout(
+    input: RequestInfo | URL,
+    init: RequestInit = {},
+): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), TRACKING_REQUEST_TIMEOUT_MS);
+
+    try {
+        return await fetch(input, { ...init, signal: controller.signal });
+    } finally {
+        window.clearTimeout(timeout);
+    }
+}
+
 function isOrderEvent(payload: unknown): payload is { order: CustomerOrder } {
     if (typeof payload !== "object" || payload === null || !("order" in payload)) {
         return false;
@@ -181,15 +195,11 @@ export default function Tracking({ access, order, realtime }: Props) {
             return;
         }
 
-        const controller = new AbortController();
-        const timeout = window.setTimeout(() => controller.abort(), TRACKING_REQUEST_TIMEOUT_MS);
-
         try {
-            const response = await fetch(realtime.poll_url, {
+            const response = await fetchTrackingWithTimeout(realtime.poll_url, {
                 headers: { Accept: "application/json" },
                 credentials: "same-origin",
                 cache: "no-store",
-                signal: controller.signal,
             });
 
             if (!response.ok) {
@@ -214,8 +224,6 @@ export default function Tracking({ access, order, realtime }: Props) {
 
             setTrackingError(message);
             throw exception;
-        } finally {
-            window.clearTimeout(timeout);
         }
     }
 
@@ -236,11 +244,16 @@ export default function Tracking({ access, order, realtime }: Props) {
             return;
         }
 
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+            setPaymentError("Tidak ada koneksi internet. Periksa jaringanmu lalu coba lagi.");
+            return;
+        }
+
         setPaymentStarting(true);
         setPaymentError(null);
 
         try {
-            const response = await fetch(realtime.payment_start_url, {
+            const response = await fetchTrackingWithTimeout(realtime.payment_start_url, {
                 method: "POST",
                 headers: { Accept: "application/json" },
                 credentials: "same-origin",
@@ -253,10 +266,17 @@ export default function Tracking({ access, order, realtime }: Props) {
 
             window.location.assign(body.redirect_url);
         } catch (exception) {
+            const isTimeout = exception instanceof Error && exception.name === "AbortError";
+            const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+
             setPaymentError(
-                exception instanceof Error
-                    ? exception.message
-                    : "Sesi pembayaran belum dapat dibuat.",
+                isTimeout
+                    ? "Koneksi terlalu lama. Periksa jaringanmu lalu coba lagi."
+                    : isOffline
+                      ? "Koneksi internet terputus. Periksa jaringanmu lalu coba lagi."
+                      : exception instanceof Error
+                        ? exception.message
+                        : "Sesi pembayaran belum dapat dibuat.",
             );
             setPaymentStarting(false);
         }

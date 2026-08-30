@@ -1,6 +1,7 @@
 import { Head, router, useForm } from "@inertiajs/react";
 import { Ban, Download, Plus, Printer, QrCode, RefreshCw, Table2 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import InputError from "@/components/input-error";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +42,14 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
     const subscriptionError = (form.errors as unknown as Record<string, string | undefined>)
         .subscription;
 
+    function showActionError(errors: Record<string, string>, action: string) {
+        const message = Object.values(errors)[0];
+
+        toast.error(`${action} gagal`, {
+            description: message ?? "Coba lagi dalam beberapa saat.",
+        });
+    }
+
     function createTable(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
         form.post("/tables", {
@@ -67,6 +76,7 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
             {
                 preserveScroll: true,
                 onFinish: () => setProcessingTableId(null),
+                onError: (errors) => showActionError(errors, "Regenerasi QR"),
             },
         );
     }
@@ -87,6 +97,7 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
             {
                 preserveScroll: true,
                 onFinish: () => setProcessingTableId(null),
+                onError: (errors) => showActionError(errors, "Pencabutan QR"),
             },
         );
     }
@@ -272,6 +283,7 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                         className="min-h-10 rounded-full"
                                         disabled={processingTableId === table.id}
                                         onClick={() => regenerateQr(table)}
+                                        aria-busy={processingTableId === table.id}
                                         aria-label={`${table.has_active_qr ? "Regenerasi" : "Buat"} QR ${table.name}`}
                                     >
                                         <RefreshCw aria-hidden="true" />
@@ -284,6 +296,7 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                             className="min-h-10 rounded-full text-destructive hover:text-destructive"
                                             disabled={processingTableId === table.id}
                                             onClick={() => revokeQr(table)}
+                                            aria-busy={processingTableId === table.id}
                                             aria-label={`Cabut QR ${table.name}`}
                                         >
                                             <Ban aria-hidden="true" /> Cabut

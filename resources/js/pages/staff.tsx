@@ -1,6 +1,7 @@
 import { Head, useForm } from "@inertiajs/react";
 import { Mail, Pencil, Plus, ShieldCheck, UserMinus, UsersRound } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import InputError from "@/components/input-error";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,6 +53,7 @@ const emptyForm: StaffForm = {
 export default function Staff({ staff, roles, usage, can_add, limit_message }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+    const [deletingStaffId, setDeletingStaffId] = useState<number | null>(null);
     const form = useForm<StaffForm>(emptyForm);
     const subscriptionError = (form.errors as Record<string, string | undefined>).subscription;
 
@@ -101,7 +103,18 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
             return;
         }
 
-        form.delete(`/staff/${member.id}`, { preserveScroll: true });
+        setDeletingStaffId(member.id);
+        form.delete(`/staff/${member.id}`, {
+            preserveScroll: true,
+            onFinish: () => setDeletingStaffId(null),
+            onError: (errors) => {
+                const message = Object.values(errors)[0];
+
+                toast.error("Staf gagal dihapus", {
+                    description: message ?? "Coba lagi dalam beberapa saat.",
+                });
+            },
+        });
     }
 
     return (
@@ -186,12 +199,16 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
                     <div className="divide-y">
                         {staff.length === 0 ? (
                             <div className="p-8 text-center" role="status">
-                                <UsersRound className="mx-auto size-8 text-primary" aria-hidden="true" />
+                                <UsersRound
+                                    className="mx-auto size-8 text-primary"
+                                    aria-hidden="true"
+                                />
                                 <h3 className="font-display mt-4 text-xl font-bold">
                                     Belum ada anggota tambahan
                                 </h3>
                                 <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                                    Tambahkan akun terdaftar untuk membantu mengelola order dan menu.
+                                    Tambahkan akun terdaftar untuk membantu mengelola order dan
+                                    menu.
                                 </p>
                                 {can_add && (
                                     <Button className="mt-5 rounded-full" onClick={openCreate}>
@@ -199,56 +216,67 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
                                     </Button>
                                 )}
                             </div>
-                        ) : staff.map((member) => (
-                            <article
-                                key={member.id}
-                                className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
-                            >
-                                <div className="flex min-w-0 items-start gap-3">
-                                    <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary font-bold text-primary">
-                                        {member.name.slice(0, 1).toUpperCase()}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <h3 className="truncate font-semibold">
-                                                {member.name}
-                                            </h3>
-                                            <span
-                                                className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${member.status === "active" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}
-                                            >
-                                                {member.status === "active" ? "Aktif" : "Nonaktif"}
-                                            </span>
+                        ) : (
+                            staff.map((member) => (
+                                <article
+                                    key={member.id}
+                                    className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
+                                >
+                                    <div className="flex min-w-0 items-start gap-3">
+                                        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary font-bold text-primary">
+                                            {member.name.slice(0, 1).toUpperCase()}
                                         </div>
-                                        <p className="mt-1 truncate text-sm text-muted-foreground">
-                                            {member.email}
-                                        </p>
-                                        <p className="mt-2 text-xs font-semibold text-primary">
-                                            {member.is_owner ? "Owner" : member.role_label}
-                                        </p>
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <h3 className="truncate font-semibold">
+                                                    {member.name}
+                                                </h3>
+                                                <span
+                                                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${member.status === "active" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}
+                                                >
+                                                    {member.status === "active"
+                                                        ? "Aktif"
+                                                        : "Nonaktif"}
+                                                </span>
+                                            </div>
+                                            <p className="mt-1 truncate text-sm text-muted-foreground">
+                                                {member.email}
+                                            </p>
+                                            <p className="mt-2 text-xs font-semibold text-primary">
+                                                {member.is_owner ? "Owner" : member.role_label}
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
-                                {!member.is_owner && (
-                                    <div className="flex shrink-0 gap-2 sm:justify-end">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="min-h-10 rounded-full"
-                                            onClick={() => openEdit(member)}
-                                        >
-                                            <Pencil aria-hidden="true" /> Edit
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="min-h-10 rounded-full text-destructive hover:text-destructive"
-                                            onClick={() => remove(member)}
-                                        >
-                                            <UserMinus aria-hidden="true" /> Hapus
-                                        </Button>
-                                    </div>
-                                )}
-                            </article>
-                        ))}
+                                    {!member.is_owner && (
+                                        <div className="flex shrink-0 gap-2 sm:justify-end">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="min-h-10 rounded-full"
+                                                onClick={() => openEdit(member)}
+                                                disabled={
+                                                    form.processing || deletingStaffId !== null
+                                                }
+                                            >
+                                                <Pencil aria-hidden="true" /> Edit
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="min-h-10 rounded-full text-destructive hover:text-destructive"
+                                                onClick={() => remove(member)}
+                                                disabled={
+                                                    form.processing || deletingStaffId !== null
+                                                }
+                                                aria-busy={deletingStaffId === member.id}
+                                            >
+                                                <UserMinus aria-hidden="true" /> Hapus
+                                            </Button>
+                                        </div>
+                                    )}
+                                </article>
+                            ))
+                        )}
                     </div>
                 </section>
             </div>

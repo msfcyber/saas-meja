@@ -208,66 +208,77 @@ export default function Outlets({ outlets, timezones, usage, can_add, limit_mess
                                 </Button>
                             )}
                         </div>
-                    ) : outlets.map((outlet) => (
-                        <article key={outlet.id} className="rounded-[1.5rem] border bg-card p-5 sm:p-6">
-                            <div className="flex items-start justify-between gap-4">
-                                <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <span className="rounded-full bg-secondary px-3 py-1 text-xs font-bold tracking-wide text-primary">
-                                            {outlet.code}
-                                        </span>
-                                        <span
-                                            className={`rounded-full px-3 py-1 text-xs font-bold ${outlet.is_active ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}
-                                        >
-                                            {outlet.is_active ? "Aktif" : "Nonaktif"}
-                                        </span>
+                    ) : (
+                        outlets.map((outlet) => (
+                            <article
+                                key={outlet.id}
+                                className="rounded-[1.5rem] border bg-card p-5 sm:p-6"
+                            >
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className="rounded-full bg-secondary px-3 py-1 text-xs font-bold tracking-wide text-primary">
+                                                {outlet.code}
+                                            </span>
+                                            <span
+                                                className={`rounded-full px-3 py-1 text-xs font-bold ${outlet.is_active ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}
+                                            >
+                                                {outlet.is_active ? "Aktif" : "Nonaktif"}
+                                            </span>
+                                        </div>
+                                        <h2 className="font-display mt-3 truncate text-2xl font-bold">
+                                            {outlet.name}
+                                        </h2>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                            {outlet.timezone} · {outlet.currency}
+                                        </p>
                                     </div>
-                                    <h2 className="font-display mt-3 truncate text-2xl font-bold">
-                                        {outlet.name}
-                                    </h2>
-                                    <p className="mt-1 text-sm text-muted-foreground">
-                                        {outlet.timezone} · {outlet.currency}
-                                    </p>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="min-h-10 rounded-full"
+                                        onClick={() => openEdit(outlet)}
+                                    >
+                                        <Pencil aria-hidden="true" /> Edit
+                                    </Button>
                                 </div>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="min-h-10 rounded-full"
-                                    onClick={() => openEdit(outlet)}
-                                >
-                                    <Pencil aria-hidden="true" /> Edit
-                                </Button>
-                            </div>
 
-                            <div className="mt-5 grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
-                                <div className="flex items-start gap-2">
-                                    <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                                    <span>{outlet.address || "Alamat belum diisi"}</span>
+                                <div className="mt-5 grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
+                                    <div className="flex items-start gap-2">
+                                        <MapPin
+                                            className="mt-0.5 size-4 shrink-0"
+                                            aria-hidden="true"
+                                        />
+                                        <span>{outlet.address || "Alamat belum diisi"}</span>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                        <Phone
+                                            className="mt-0.5 size-4 shrink-0"
+                                            aria-hidden="true"
+                                        />
+                                        <span>{outlet.phone || "Nomor telepon belum diisi"}</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-start gap-2">
-                                    <Phone className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                                    <span>{outlet.phone || "Nomor telepon belum diisi"}</span>
-                                </div>
-                            </div>
 
-                            <div className="mt-5 grid grid-cols-2 gap-3 border-t pt-4 text-sm">
-                                <div>
-                                    <p className="text-xs text-muted-foreground">Produk</p>
-                                    <p className="mt-1 font-bold">{outlet.products_count}</p>
+                                <div className="mt-5 grid grid-cols-2 gap-3 border-t pt-4 text-sm">
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">Produk</p>
+                                        <p className="mt-1 font-bold">{outlet.products_count}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">Meja</p>
+                                        <p className="mt-1 font-bold">{outlet.tables_count}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-xs text-muted-foreground">Meja</p>
-                                    <p className="mt-1 font-bold">{outlet.tables_count}</p>
-                                </div>
-                            </div>
 
-                            <p className="mt-4 text-xs font-semibold text-muted-foreground">
-                                {outlet.accepts_orders
-                                    ? "Outlet menerima order customer."
-                                    : "Penerimaan order sedang dimatikan."}
-                            </p>
-                        </article>
-                    ))}
+                                <p className="mt-4 text-xs font-semibold text-muted-foreground">
+                                    {outlet.accepts_orders
+                                        ? "Outlet menerima order customer."
+                                        : "Penerimaan order sedang dimatikan."}
+                                </p>
+                            </article>
+                        ))
+                    )}
                 </section>
             </div>
 
@@ -400,6 +411,10 @@ export default function Outlets({ outlets, timezones, usage, can_add, limit_mess
                                     onCheckedChange={(checked) =>
                                         form.setData("is_active", checked === true)
                                     }
+                                    aria-invalid={Boolean(form.errors.is_active)}
+                                    aria-describedby={
+                                        form.errors.is_active ? "outlet-active-error" : undefined
+                                    }
                                 />
                                 <div>
                                     <Label htmlFor="outlet-active" className="font-semibold">
@@ -417,6 +432,12 @@ export default function Outlets({ outlets, timezones, usage, can_add, limit_mess
                                     onCheckedChange={(checked) =>
                                         form.setData("accepts_orders", checked === true)
                                     }
+                                    aria-invalid={Boolean(form.errors.accepts_orders)}
+                                    aria-describedby={
+                                        form.errors.accepts_orders
+                                            ? "outlet-accepts-orders-error"
+                                            : undefined
+                                    }
                                 />
                                 <div>
                                     <Label
@@ -430,7 +451,11 @@ export default function Outlets({ outlets, timezones, usage, can_add, limit_mess
                                     </span>
                                 </div>
                             </div>
-                            <InputError id="outlet-status-error" message={form.errors.is_active} />
+                            <InputError id="outlet-active-error" message={form.errors.is_active} />
+                            <InputError
+                                id="outlet-accepts-orders-error"
+                                message={form.errors.accepts_orders}
+                            />
                         </div>
 
                         <DialogFooter>

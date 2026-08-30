@@ -17,7 +17,7 @@ Terakhir diperbarui: 30 Agustus 2026
 - [x] Pengelolaan staf: membership tenant, role operasional, status aktif, audit, dan proteksi owner.
 - [x] Branding dan lokalisasi halaman login/register utama.
 
-Beberapa halaman marketing dan fitur realtime/notifikasi masih menggunakan data demo atau fallback prototype sampai backend domainnya tersedia.
+Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik, checkout, tracking, live order, dan laporan sudah terhubung ke backend.
 
 ## Selesai - Static Accessibility Hardening
 
@@ -55,7 +55,7 @@ Beberapa halaman marketing dan fitur realtime/notifikasi masih menggunakan data 
 
 ## Selesai - Operational Pages
 
-- [x] Dashboard server-rendered dengan identitas outlet, status penerimaan order, dan ringkasan katalog/meja aktual.
+- [x] Dashboard server-rendered dengan identitas outlet, status penerimaan order, ringkasan order/penjualan hari ini, dan kesiapan katalog/meja aktual.
 - [x] Produk dan meja server-rendered, difilter oleh outlet aktif, dengan empty state yang jujur.
 - [x] Form Request untuk tambah produk/meja dan perubahan ketersediaan produk.
 - [x] Order board server-rendered dengan filter, pencarian, detail snapshot item, policy, dan aksi transisi status.

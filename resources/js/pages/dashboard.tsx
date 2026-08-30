@@ -1,9 +1,9 @@
-import { Head } from "@inertiajs/react";
-import { ClipboardList, PackageOpen, Table2, UtensilsCrossed } from "lucide-react";
+import { Head, Link } from "@inertiajs/react";
+import { ClipboardList, PackageOpen, Table2, TrendingUp, UtensilsCrossed } from "lucide-react";
 import { dashboard } from "@/routes";
 
 type Props = {
-    outlet: { name: string; timezone: string; accepts_orders: boolean };
+    outlet: { name: string; timezone: string; currency: string; accepts_orders: boolean };
     today: string;
     viewerName: string;
     catalogSummary: {
@@ -12,10 +12,49 @@ type Props = {
         active_tables: number;
         total_tables: number;
     };
+    orderSummary: {
+        orders_today: number;
+        gross_sales_today: number;
+        active_orders: number;
+    };
+    canViewReports: boolean;
 };
 
-export default function Dashboard({ outlet, today, viewerName, catalogSummary }: Props) {
+function formatMoney(amount: number, currency: string): string {
+    return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 0,
+    }).format(amount);
+}
+
+export default function Dashboard({
+    outlet,
+    today,
+    viewerName,
+    catalogSummary,
+    orderSummary,
+    canViewReports,
+}: Props) {
     const metrics = [
+        {
+            label: "Order hari ini",
+            value: orderSummary.orders_today,
+            detail: "Pembayaran terverifikasi",
+            icon: ClipboardList,
+        },
+        {
+            label: "Penjualan hari ini",
+            value: formatMoney(orderSummary.gross_sales_today, outlet.currency),
+            detail: "Dari order berbayar",
+            icon: TrendingUp,
+        },
+        {
+            label: "Order aktif",
+            value: orderSummary.active_orders,
+            detail: "Di antrean operasional",
+            icon: UtensilsCrossed,
+        },
         {
             label: "Produk tersedia",
             value: catalogSummary.available_products,
@@ -82,19 +121,27 @@ export default function Dashboard({ outlet, today, viewerName, catalogSummary }:
                             <ClipboardList className="size-6" aria-hidden="true" />
                         </div>
                         <h2 className="font-display mt-5 text-2xl font-bold">
-                            Order dan penjualan akan tampil di sini.
+                            Operasional outlet hari ini.
                         </h2>
                         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                            Domain order dan pembayaran belum diaktifkan, jadi ringkasan ini hanya
-                            menampilkan kesiapan katalog dan meja aktual. Tambahkan produk serta
-                            meja untuk menyiapkan outlet menerima pesanan.
+                            Pantau order aktif dari live order board dan gunakan laporan untuk
+                            melihat transaksi yang pembayarannya sudah terverifikasi.
                         </p>
-                        <div className="mt-7 flex items-center gap-2 rounded-2xl bg-[#293025] p-4 text-[#fffaf0]">
-                            <UtensilsCrossed className="size-5 text-[#dfa281]" aria-hidden="true" />
-                            <p className="text-sm font-semibold">
-                                Setelah ordering aktif, metrik penjualan dan antrean akan dihitung
-                                sepenuhnya di server.
-                            </p>
+                        <div className="mt-7 flex flex-wrap gap-3">
+                            <Link
+                                href="/orders"
+                                className="inline-flex min-h-11 items-center justify-center rounded-full bg-foreground px-5 text-sm font-bold text-background transition-colors hover:bg-primary"
+                            >
+                                Buka live order
+                            </Link>
+                            {canViewReports && (
+                                <Link
+                                    href="/reports/sales"
+                                    className="inline-flex min-h-11 items-center justify-center rounded-full border px-5 text-sm font-bold transition-colors hover:bg-secondary"
+                                >
+                                    Lihat laporan
+                                </Link>
+                            )}
                         </div>
                     </section>
                 </div>
