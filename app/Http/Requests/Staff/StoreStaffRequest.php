@@ -17,7 +17,8 @@ class StoreStaffRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'email:rfc', 'max:255', Rule::exists(User::class, 'email')],
+            'name' => ['nullable', 'string', 'max:255'],
+            'email' => ['required', 'email:rfc', 'max:255'],
             'role' => ['required', Rule::in(['admin', 'cashier', 'kitchen'])],
         ];
     }

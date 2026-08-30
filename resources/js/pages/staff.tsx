@@ -1,9 +1,16 @@
-import { Head, useForm } from "@inertiajs/react";
-import { Mail, Pencil, Plus, ShieldCheck, UserMinus, UsersRound } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
-import InputError from "@/components/input-error";
-import { Button } from "@/components/ui/button";
+import { Head, useForm } from '@inertiajs/react';
+import {
+    Mail,
+    Pencil,
+    Plus,
+    ShieldCheck,
+    UserMinus,
+    UsersRound,
+} from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import InputError from '@/components/input-error';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -11,15 +18,15 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 type StaffMember = {
     id: number;
     name: string;
     email: string;
-    status: "active" | "inactive";
+    status: 'active' | 'inactive';
     is_owner: boolean;
     role: string | null;
     role_label: string;
@@ -31,9 +38,10 @@ type RoleOption = {
 };
 
 type StaffForm = {
+    name: string;
     email: string;
     role: string;
-    status: "active" | "inactive";
+    status: 'active' | 'inactive';
 };
 
 type Props = {
@@ -45,17 +53,26 @@ type Props = {
 };
 
 const emptyForm: StaffForm = {
-    email: "",
-    role: "cashier",
-    status: "active",
+    name: '',
+    email: '',
+    role: 'cashier',
+    status: 'active',
 };
 
-export default function Staff({ staff, roles, usage, can_add, limit_message }: Props) {
+export default function Staff({
+    staff,
+    roles,
+    usage,
+    can_add,
+    limit_message,
+}: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
     const [deletingStaffId, setDeletingStaffId] = useState<number | null>(null);
     const form = useForm<StaffForm>(emptyForm);
-    const subscriptionError = (form.errors as Record<string, string | undefined>).subscription;
+    const subscriptionError = (
+        form.errors as Record<string, string | undefined>
+    ).subscription;
 
     function openCreate() {
         setEditingStaff(null);
@@ -66,9 +83,10 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
 
     function openEdit(member: StaffMember) {
         setEditingStaff(member);
-        form.setData("email", member.email);
-        form.setData("role", member.role ?? "cashier");
-        form.setData("status", member.status);
+        form.setData('name', member.name);
+        form.setData('email', member.email);
+        form.setData('role', member.role ?? 'cashier');
+        form.setData('status', member.status);
         form.clearErrors();
         setIsOpen(true);
     }
@@ -92,7 +110,7 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
             return;
         }
 
-        form.post("/staff", {
+        form.post('/staff', {
             preserveScroll: true,
             onSuccess: closeDialog,
         });
@@ -110,8 +128,8 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
             onError: (errors) => {
                 const message = Object.values(errors)[0];
 
-                toast.error("Staf gagal dihapus", {
-                    description: message ?? "Coba lagi dalam beberapa saat.",
+                toast.error('Staf gagal dihapus', {
+                    description: message ?? 'Coba lagi dalam beberapa saat.',
                 });
             },
         });
@@ -123,15 +141,15 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
             <div className="mx-auto w-full max-w-[1500px] flex-1 p-4 sm:p-6 lg:p-8">
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                        <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
+                        <p className="text-primary text-xs font-bold tracking-[0.16em] uppercase">
                             Workspace bisnis
                         </p>
                         <h1 className="font-display mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
                             Staf & akses
                         </h1>
-                        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                            Tambahkan akun terdaftar dan atur peran operasionalnya pada workspace
-                            ini.
+                        <p className="text-muted-foreground mt-2 max-w-2xl text-sm">
+                            Tambahkan akun terdaftar dan atur peran
+                            operasionalnya pada workspace ini.
                         </p>
                     </div>
                     <Button
@@ -139,7 +157,9 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
                         className="min-h-12 rounded-full"
                         onClick={openCreate}
                         disabled={!can_add}
-                        title={can_add ? undefined : (limit_message ?? undefined)}
+                        title={
+                            can_add ? undefined : (limit_message ?? undefined)
+                        }
                     >
                         <Plus aria-hidden="true" /> Tambah staf
                     </Button>
@@ -155,63 +175,85 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
                 )}
 
                 <section className="mt-8 grid gap-4 sm:grid-cols-3">
-                    <article className="flex items-center gap-4 rounded-[1.3rem] border bg-card p-5">
-                        <span className="flex size-11 items-center justify-center rounded-xl bg-secondary text-primary">
+                    <article className="bg-card flex items-center gap-4 rounded-[1.3rem] border p-5">
+                        <span className="bg-secondary text-primary flex size-11 items-center justify-center rounded-xl">
                             <UsersRound className="size-5" aria-hidden="true" />
                         </span>
                         <div>
-                            <p className="text-xs text-muted-foreground">Staf aktif</p>
+                            <p className="text-muted-foreground text-xs">
+                                Staf aktif
+                            </p>
                             <p className="mt-1 text-xl font-bold">
                                 {usage.current}
-                                <span className="ml-1 text-xs font-normal text-muted-foreground">
-                                    / {usage.limit === null ? "tak terbatas" : usage.limit}
+                                <span className="text-muted-foreground ml-1 text-xs font-normal">
+                                    /{' '}
+                                    {usage.limit === null
+                                        ? 'tak terbatas'
+                                        : usage.limit}
                                 </span>
                             </p>
                         </div>
                     </article>
-                    <article className="flex items-center gap-4 rounded-[1.3rem] border bg-card p-5">
-                        <span className="flex size-11 items-center justify-center rounded-xl bg-secondary text-primary">
-                            <ShieldCheck className="size-5" aria-hidden="true" />
+                    <article className="bg-card flex items-center gap-4 rounded-[1.3rem] border p-5">
+                        <span className="bg-secondary text-primary flex size-11 items-center justify-center rounded-xl">
+                            <ShieldCheck
+                                className="size-5"
+                                aria-hidden="true"
+                            />
                         </span>
                         <div>
-                            <p className="text-xs text-muted-foreground">Peran tersedia</p>
-                            <p className="mt-1 text-xl font-bold">{roles.length}</p>
+                            <p className="text-muted-foreground text-xs">
+                                Peran tersedia
+                            </p>
+                            <p className="mt-1 text-xl font-bold">
+                                {roles.length}
+                            </p>
                         </div>
                     </article>
-                    <article className="flex items-center gap-4 rounded-[1.3rem] border bg-card p-5">
-                        <span className="flex size-11 items-center justify-center rounded-xl bg-secondary text-primary">
+                    <article className="bg-card flex items-center gap-4 rounded-[1.3rem] border p-5">
+                        <span className="bg-secondary text-primary flex size-11 items-center justify-center rounded-xl">
                             <Mail className="size-5" aria-hidden="true" />
                         </span>
                         <div>
-                            <p className="text-xs text-muted-foreground">Model akses</p>
-                            <p className="mt-1 text-xl font-bold">Tenant-wide</p>
+                            <p className="text-muted-foreground text-xs">
+                                Model akses
+                            </p>
+                            <p className="mt-1 text-xl font-bold">
+                                Tenant-wide
+                            </p>
                         </div>
                     </article>
                 </section>
 
-                <section className="mt-5 overflow-hidden rounded-[1.5rem] border bg-card">
+                <section className="bg-card mt-5 overflow-hidden rounded-[1.5rem] border">
                     <div className="border-b p-5 sm:p-6">
-                        <h2 className="font-display text-xl font-bold">Anggota workspace</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            Owner tidak dapat dihapus atau diturunkan perannya dari halaman ini.
+                        <h2 className="font-display text-xl font-bold">
+                            Anggota workspace
+                        </h2>
+                        <p className="text-muted-foreground mt-1 text-sm">
+                            Owner tidak dapat dihapus atau diturunkan perannya
+                            dari halaman ini.
                         </p>
                     </div>
                     <div className="divide-y">
                         {staff.length === 0 ? (
                             <div className="p-8 text-center" role="status">
                                 <UsersRound
-                                    className="mx-auto size-8 text-primary"
+                                    className="text-primary mx-auto size-8"
                                     aria-hidden="true"
                                 />
                                 <h3 className="font-display mt-4 text-xl font-bold">
                                     Belum ada anggota tambahan
                                 </h3>
-                                <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                                    Tambahkan akun terdaftar untuk membantu mengelola order dan
-                                    menu.
+                                <p className="text-muted-foreground mx-auto mt-2 max-w-md text-sm">
+                                    Tambahkan akun terdaftar untuk membantu
+                                    mengelola order dan menu.
                                 </p>
                                 {can_add && (
-                                    <Button className="mt-5 rounded-full" onClick={openCreate}>
+                                    <Button
+                                        className="mt-5 rounded-full"
+                                        onClick={openCreate}
+                                    >
                                         <Plus aria-hidden="true" /> Tambah staf
                                     </Button>
                                 )}
@@ -223,8 +265,10 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
                                     className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
                                 >
                                     <div className="flex min-w-0 items-start gap-3">
-                                        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary font-bold text-primary">
-                                            {member.name.slice(0, 1).toUpperCase()}
+                                        <div className="bg-secondary text-primary flex size-11 shrink-0 items-center justify-center rounded-full font-bold">
+                                            {member.name
+                                                .slice(0, 1)
+                                                .toUpperCase()}
                                         </div>
                                         <div className="min-w-0">
                                             <div className="flex flex-wrap items-center gap-2">
@@ -232,18 +276,20 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
                                                     {member.name}
                                                 </h3>
                                                 <span
-                                                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${member.status === "active" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}
+                                                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${member.status === 'active' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-muted text-muted-foreground'}`}
                                                 >
-                                                    {member.status === "active"
-                                                        ? "Aktif"
-                                                        : "Nonaktif"}
+                                                    {member.status === 'active'
+                                                        ? 'Aktif'
+                                                        : 'Nonaktif'}
                                                 </span>
                                             </div>
-                                            <p className="mt-1 truncate text-sm text-muted-foreground">
+                                            <p className="text-muted-foreground mt-1 truncate text-sm">
                                                 {member.email}
                                             </p>
-                                            <p className="mt-2 text-xs font-semibold text-primary">
-                                                {member.is_owner ? "Owner" : member.role_label}
+                                            <p className="text-primary mt-2 text-xs font-semibold">
+                                                {member.is_owner
+                                                    ? 'Owner'
+                                                    : member.role_label}
                                             </p>
                                         </div>
                                     </div>
@@ -255,22 +301,29 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
                                                 className="min-h-10 rounded-full"
                                                 onClick={() => openEdit(member)}
                                                 disabled={
-                                                    form.processing || deletingStaffId !== null
+                                                    form.processing ||
+                                                    deletingStaffId !== null
                                                 }
                                             >
-                                                <Pencil aria-hidden="true" /> Edit
+                                                <Pencil aria-hidden="true" />{' '}
+                                                Edit
                                             </Button>
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="min-h-10 rounded-full text-destructive hover:text-destructive"
+                                                className="text-destructive hover:text-destructive min-h-10 rounded-full"
                                                 onClick={() => remove(member)}
                                                 disabled={
-                                                    form.processing || deletingStaffId !== null
+                                                    form.processing ||
+                                                    deletingStaffId !== null
                                                 }
-                                                aria-busy={deletingStaffId === member.id}
+                                                aria-busy={
+                                                    deletingStaffId ===
+                                                    member.id
+                                                }
                                             >
-                                                <UserMinus aria-hidden="true" /> Hapus
+                                                <UserMinus aria-hidden="true" />{' '}
+                                                Hapus
                                             </Button>
                                         </div>
                                     )}
@@ -281,36 +334,95 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
                 </section>
             </div>
 
-            <Dialog open={isOpen} onOpenChange={(open) => !open && closeDialog()}>
+            <Dialog
+                open={isOpen}
+                onOpenChange={(open) => !open && closeDialog()}
+            >
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
-                        <DialogTitle>{editingStaff ? "Edit staf" : "Tambah staf"}</DialogTitle>
+                        <DialogTitle>
+                            {editingStaff ? 'Edit staf' : 'Tambah staf'}
+                        </DialogTitle>
                         <DialogDescription>
-                            Hanya akun yang sudah terdaftar yang dapat ditambahkan ke workspace.
+                            Buat akun staf baru atau tambahkan akun yang sudah
+                            ada ke workspace.
                         </DialogDescription>
                     </DialogHeader>
 
                     <form onSubmit={submit} className="grid gap-4">
-                        <InputError id="staff-subscription-error" message={subscriptionError} />
+                        <InputError
+                            id="staff-subscription-error"
+                            message={subscriptionError}
+                        />
                         {!editingStaff && (
-                            <div className="grid gap-2">
-                                <Label htmlFor="staff-email">Email akun</Label>
-                                <Input
-                                    id="staff-email"
-                                    type="email"
-                                    value={form.data.email}
-                                    onChange={(event) => form.setData("email", event.target.value)}
-                                    autoComplete="email"
-                                    autoFocus
-                                    required
-                                    placeholder="staf@example.com"
-                                    aria-invalid={Boolean(form.errors.email)}
-                                    aria-describedby={
-                                        form.errors.email ? "staff-email-error" : undefined
-                                    }
-                                />
-                                <InputError id="staff-email-error" message={form.errors.email} />
-                            </div>
+                            <>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="staff-name">
+                                        Nama staf
+                                    </Label>
+                                    <Input
+                                        id="staff-name"
+                                        value={form.data.name}
+                                        onChange={(event) =>
+                                            form.setData(
+                                                'name',
+                                                event.target.value,
+                                            )
+                                        }
+                                        autoComplete="name"
+                                        autoFocus
+                                        required
+                                        placeholder="Nama staf"
+                                        aria-invalid={Boolean(form.errors.name)}
+                                        aria-describedby={
+                                            form.errors.name
+                                                ? 'staff-name-error'
+                                                : undefined
+                                        }
+                                    />
+                                    <InputError
+                                        id="staff-name-error"
+                                        message={form.errors.name}
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="staff-email">
+                                        Email akun
+                                    </Label>
+                                    <Input
+                                        id="staff-email"
+                                        type="email"
+                                        value={form.data.email}
+                                        onChange={(event) =>
+                                            form.setData(
+                                                'email',
+                                                event.target.value,
+                                            )
+                                        }
+                                        autoComplete="email"
+                                        required
+                                        placeholder="staf@example.com"
+                                        aria-invalid={Boolean(
+                                            form.errors.email,
+                                        )}
+                                        aria-describedby={
+                                            form.errors.email
+                                                ? 'staff-email-error'
+                                                : undefined
+                                        }
+                                    />
+                                    <InputError
+                                        id="staff-email-error"
+                                        message={form.errors.email}
+                                    />
+                                </div>
+                                <p className="bg-secondary/70 text-secondary-foreground rounded-xl px-3 py-2 text-xs leading-5">
+                                    Akun baru memakai password awal{' '}
+                                    <strong>password</strong>. Bagikan secara
+                                    aman dan minta staf mengubahnya setelah
+                                    masuk.
+                                </p>
+                            </>
                         )}
 
                         <div className="grid gap-2">
@@ -318,10 +430,16 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
                             <select
                                 id="staff-role"
                                 value={form.data.role}
-                                onChange={(event) => form.setData("role", event.target.value)}
+                                onChange={(event) =>
+                                    form.setData('role', event.target.value)
+                                }
                                 className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
                                 aria-invalid={Boolean(form.errors.role)}
-                                aria-describedby={form.errors.role ? "staff-role-error" : undefined}
+                                aria-describedby={
+                                    form.errors.role
+                                        ? 'staff-role-error'
+                                        : undefined
+                                }
                             >
                                 {roles.map((role) => (
                                     <option key={role.value} value={role.value}>
@@ -329,40 +447,55 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
                                     </option>
                                 ))}
                             </select>
-                            <InputError id="staff-role-error" message={form.errors.role} />
+                            <InputError
+                                id="staff-role-error"
+                                message={form.errors.role}
+                            />
                         </div>
 
                         {editingStaff && (
                             <div className="grid gap-2">
-                                <Label htmlFor="staff-status">Status keanggotaan</Label>
+                                <Label htmlFor="staff-status">
+                                    Status keanggotaan
+                                </Label>
                                 <select
                                     id="staff-status"
                                     value={form.data.status}
                                     onChange={(event) =>
                                         form.setData(
-                                            "status",
-                                            event.target.value as StaffForm["status"],
+                                            'status',
+                                            event.target
+                                                .value as StaffForm['status'],
                                         )
                                     }
                                     className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
                                     aria-invalid={Boolean(form.errors.status)}
                                     aria-describedby={
-                                        form.errors.status ? "staff-status-error" : undefined
+                                        form.errors.status
+                                            ? 'staff-status-error'
+                                            : undefined
                                     }
                                 >
                                     <option value="active">Aktif</option>
                                     <option value="inactive">Nonaktif</option>
                                 </select>
-                                <InputError id="staff-status-error" message={form.errors.status} />
+                                <InputError
+                                    id="staff-status-error"
+                                    message={form.errors.status}
+                                />
                             </div>
                         )}
 
                         <DialogFooter>
-                            <Button type="button" variant="secondary" onClick={closeDialog}>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={closeDialog}
+                            >
                                 Batal
                             </Button>
                             <Button type="submit" disabled={form.processing}>
-                                {form.processing ? "Menyimpan..." : "Simpan"}
+                                {form.processing ? 'Menyimpan...' : 'Simpan'}
                             </Button>
                         </DialogFooter>
                     </form>
@@ -372,4 +505,4 @@ export default function Staff({ staff, roles, usage, can_add, limit_message }: P
     );
 }
 
-Staff.layout = { breadcrumbs: [{ title: "Staf & akses", href: "/staff" }] };
+Staff.layout = { breadcrumbs: [{ title: 'Staf & akses', href: '/staff' }] };

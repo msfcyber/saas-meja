@@ -18,6 +18,8 @@ use Inertia\Response;
 
 class StaffController extends Controller
 {
+    private const DEFAULT_STAFF_PASSWORD = 'password';
+
     /** @var list<string> */
     private const STAFF_ROLES = ['admin', 'cashier', 'kitchen'];
 
@@ -87,23 +89,31 @@ class StaffController extends Controller
         }
 
         $attributes = $request->validated();
-        $staff = User::query()->where('email', $attributes['email'])->first();
-
-        if ($staff === null) {
-            throw ValidationException::withMessages([
-                'email' => 'Akun dengan email tersebut belum terdaftar.',
-            ]);
-        }
-
-        if ($tenant->users()->whereKey($staff->getKey())->exists()) {
-            throw ValidationException::withMessages([
-                'email' => 'Akun tersebut sudah menjadi anggota workspace ini.',
-            ]);
-        }
-
         $role = $this->tenantRole($tenant, $attributes['role']);
 
-        DB::transaction(function () use ($tenant, $staff, $role, $audits): void {
+        $staff = DB::transaction(function () use ($tenant, $attributes, $role, $audits): User {
+            $staff = User::query()->where('email', $attributes['email'])->first();
+
+            if ($staff === null) {
+                if (blank($attributes['name'] ?? null)) {
+                    throw ValidationException::withMessages([
+                        'name' => 'Nama staf wajib diisi untuk akun baru.',
+                    ]);
+                }
+
+                $staff = User::query()->create([
+                    'name' => $attributes['name'],
+                    'email' => $attributes['email'],
+                    'password' => self::DEFAULT_STAFF_PASSWORD,
+                ]);
+            }
+
+            if ($tenant->users()->whereKey($staff->getKey())->exists()) {
+                throw ValidationException::withMessages([
+                    'email' => 'Akun tersebut sudah menjadi anggota workspace ini.',
+                ]);
+            }
+
             $tenant->users()->attach($staff, [
                 'status' => 'active',
                 'is_owner' => false,
@@ -122,6 +132,8 @@ class StaffController extends Controller
                     'status' => 'active',
                 ],
             ]);
+
+            return $staff;
         }, attempts: 3);
 
         return to_route('staff')->with('success', "{$staff->name} berhasil ditambahkan sebagai staf.");

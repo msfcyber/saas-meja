@@ -8,6 +8,7 @@ use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
 
 /**
@@ -159,21 +160,24 @@ test('outlet updates cannot cross the active tenant boundary', function () {
     expect($foreignOutlet->fresh()->name)->not->toBe('Tidak boleh');
 });
 
-test('owner can add update and remove a registered staff member', function () {
+test('owner can create update and remove a staff member', function () {
     $workspace = createResourceManagementWorkspace();
-    $staff = User::factory()->create([
-        'name' => 'Kasir Sore',
-        'email' => 'kasir.sore@example.com',
-    ]);
+    $staffEmail = 'kasir.sore@example.com';
     $session = resourceManagementSession($workspace);
 
     $this->actingAs($workspace['owner'])
         ->withSession($session)
         ->post(route('staff.store'), [
-            'email' => $staff->email,
+            'name' => 'Kasir Sore',
+            'email' => $staffEmail,
             'role' => 'cashier',
         ])
         ->assertRedirect(route('staff'));
+
+    $staff = User::query()->where('email', $staffEmail)->firstOrFail();
+
+    expect($staff->name)->toBe('Kasir Sore')
+        ->and(Hash::check('password', $staff->password))->toBeTrue();
 
     $cashierRole = Role::query()
         ->where('tenant_id', $workspace['tenant']->id)
