@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Enums\OrderStatus;
+use App\Events\OrderStatusUpdated;
+use App\Http\Requests\Orders\UpdateOrderNotificationPreferencesRequest;
 use App\Http\Requests\Orders\UpdateOrderStatusRequest;
 use App\Http\Resources\OrderResource;
 use App\Models\Order;
+use App\Models\StaffNotificationPreference;
 use App\Services\OrderStatusService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
@@ -62,12 +65,35 @@ class OrderController extends Controller
         }
 
         $outlet = $context->outletOrFail();
+        $preference = StaffNotificationPreference::query()
+            ->where('user_id', $request->user()?->getAuthIdentifier())
+            ->first();
+        $notificationOrders = Order::query()
+            ->where('status', OrderStatus::Paid)
+            ->with('table')
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get()
+            ->map(fn (Order $order) => [
+                'id' => $order->getKey(),
+                'number' => $order->order_number,
+                'table_name' => $order->table?->name,
+            ])
+            ->values();
 
         return Inertia::render('orders', [
             'outlet' => [
                 'name' => $outlet->name,
                 'timezone' => $outlet->timezone,
             ],
+            'realtime' => [
+                'channel' => OrderStatusUpdated::outletChannel((int) $outlet->getKey()),
+            ],
+            'notifications' => [
+                'visual_enabled' => $preference === null ? true : $preference->visual_enabled,
+                'sound_enabled' => $preference === null ? true : $preference->sound_enabled,
+            ],
+            'notification_orders' => $notificationOrders,
             'filters' => [
                 'search' => $search,
                 'status' => $status,
@@ -95,6 +121,25 @@ class OrderController extends Controller
         );
 
         return to_route('orders')->with('success', 'Status order berhasil diperbarui.');
+    }
+
+    public function updateNotificationPreferences(
+        UpdateOrderNotificationPreferencesRequest $request,
+        TenantContext $context,
+    ): RedirectResponse {
+        $outlet = $context->outletOrFail();
+        $userId = $request->user()?->getAuthIdentifier();
+
+        StaffNotificationPreference::query()->updateOrCreate(
+            [
+                'tenant_id' => $context->tenantId(),
+                'outlet_id' => $outlet->getKey(),
+                'user_id' => $userId,
+            ],
+            $request->validated(),
+        );
+
+        return to_route('orders');
     }
 
     /** @return list<string> */

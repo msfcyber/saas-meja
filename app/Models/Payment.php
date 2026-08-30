@@ -14,7 +14,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property PaymentStatus $status
+ * @property CarbonImmutable|null $expires_at
  * @property CarbonImmutable|null $last_webhook_at
+ * @property array<string, mixed>|null $metadata
  */
 #[Fillable([
     'tenant_id',

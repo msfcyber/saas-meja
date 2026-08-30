@@ -153,20 +153,32 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                 }),
             });
             const body: {
+                access_token?: string;
                 tracking_url?: string;
                 message?: string;
                 errors?: Record<string, string[]>;
             } = await response.json();
 
-            if (!response.ok || !body.tracking_url) {
+            if (!response.ok || !body.access_token || !body.tracking_url) {
                 const validationMessage = body.errors ? Object.values(body.errors)[0]?.[0] : null;
                 throw new Error(
                     validationMessage ?? body.message ?? "Checkout belum dapat diproses.",
                 );
             }
 
+            const paymentResponse = await fetch(`/api/public/orders/${body.access_token}/payment`, {
+                method: "POST",
+                headers: { Accept: "application/json" },
+            });
+            const paymentBody: { redirect_url?: string; message?: string } =
+                await paymentResponse.json();
+
+            if (!paymentResponse.ok || !paymentBody.redirect_url) {
+                throw new Error(paymentBody.message ?? "Sesi pembayaran belum dapat dibuat.");
+            }
+
             clearCustomerCart(qr_token);
-            window.location.assign(body.tracking_url);
+            window.location.assign(paymentBody.redirect_url);
         } catch (exception) {
             setError(
                 exception instanceof Error ? exception.message : "Checkout belum dapat diproses.",

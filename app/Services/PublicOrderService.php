@@ -164,7 +164,7 @@ final class PublicOrderService
                 }
             }
 
-            Payment::withoutGlobalScopes()->create([
+            $payment = Payment::withoutGlobalScopes()->create([
                 'tenant_id' => $tenantId,
                 'outlet_id' => $outletId,
                 'order_id' => $order->getKey(),
@@ -172,8 +172,10 @@ final class PublicOrderService
                 'status' => PaymentStatus::Pending,
                 'amount' => $grandTotal,
                 'currency' => (string) $outlet->currency,
+                'provider' => (string) config('payments.default_provider', 'midtrans'),
                 'expires_at' => $now->copy()->addMinutes(15),
             ]);
+            $payment->update(['provider_reference' => 'meja-payment-'.$payment->getKey()]);
 
             return [
                 'order' => $this->loadOrder($order),

@@ -4,6 +4,8 @@ Before planning or editing, find the row whose globs match the file's path and r
 
 | Applies to | Rule file |
 | --- | --- |
+| app/Models/StaffNotificationPreference.php | .ai/rules/app-models.md |
+| app/Services/{MidtransPaymentGateway.php,MidtransWebhookService.php} | .ai/rules/app-services.md |
 | app/**/Public*.php | .ai/rules/app.md |
 | app/Models/**,database/migrations/**,config/permission.php | .ai/rules/migrations.md |
 | app/Http/Controllers/PublicMenuController.php,app/Http/Controllers/TableQrCodeController.php,app/Services/TableQrCodeService.php,routes/web.php,app/Models/TableQrToken.php | .ai/rules/models.md |
@@ -11,3 +13,4 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Http/Controllers/ProductController.php,app/Http/Requests/Catalog/**,resources/js/pages/products.tsx | .ai/rules/pages.md |
 | app/Models/**,app/Http/Middleware/**,app/Policies/** | .ai/rules/policies.md |
 | app/Http/Controllers/**,app/Http/Requests/**,app/Policies/TenantResourcePolicy.php | .ai/rules/requests-policies.md |
+| app/Events/**,app/Services/OrderStatusService.php,routes/channels.php | .ai/rules/services.md |

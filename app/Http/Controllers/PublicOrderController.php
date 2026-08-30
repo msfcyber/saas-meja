@@ -2,10 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PaymentStatus;
+use App\Events\OrderStatusUpdated;
 use App\Http\Requests\Customer\StoreGuestOrderRequest;
 use App\Http\Resources\OrderResource;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\TaxSetting;
+use App\Services\PaymentCheckoutService;
+use App\Services\PaymentGatewayException;
 use App\Services\PublicOrderService;
 use App\Services\PublicTableAccessService;
 use Illuminate\Http\JsonResponse;
@@ -103,6 +108,10 @@ class PublicOrderController extends Controller
         return Inertia::render('customer/tracking', [
             'access' => ['valid' => true, 'message' => null],
             'order' => (new OrderResource($order))->resolve($request),
+            'realtime' => [
+                'channel' => OrderStatusUpdated::customerChannel((string) $order->access_token_hash),
+                'poll_url' => route('public.orders.show', ['accessToken' => $accessToken]),
+            ],
         ]);
     }
 
@@ -119,6 +128,39 @@ class PublicOrderController extends Controller
         return response()->json([
             'order' => (new OrderResource($order))->resolve($request),
         ]);
+    }
+
+    public function startPayment(
+        Request $request,
+        string $accessToken,
+        PaymentCheckoutService $payments,
+    ): JsonResponse {
+        $order = $this->findOrder($accessToken);
+
+        if ($order === null) {
+            return response()->json(['message' => 'Order tidak ditemukan.'], 404);
+        }
+
+        $payment = Payment::withoutGlobalScopes()
+            ->where('order_id', $order->getKey())
+            ->latest('id')
+            ->firstOrFail();
+
+        if ($payment->status !== PaymentStatus::Pending) {
+            return response()->json(['message' => 'Payment ini tidak lagi menunggu pembayaran.'], 409);
+        }
+
+        try {
+            $checkout = $payments->start(
+                $payment,
+                $order,
+                route('public.order', ['accessToken' => $accessToken]),
+            );
+        } catch (PaymentGatewayException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 503);
+        }
+
+        return response()->json($checkout);
     }
 
     private function findOrder(string $accessToken): ?Order

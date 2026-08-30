@@ -1,6 +1,6 @@
 # Progress Pengembangan
 
-Terakhir diperbarui: 29 Agustus 2026
+Terakhir diperbarui: 30 Agustus 2026
 
 ## Selesai - Frontend Foundation
 
@@ -69,6 +69,9 @@ Beberapa halaman marketing dan fitur realtime/notifikasi masih menggunakan data 
 - [x] Idempotency key menghasilkan satu order/payment dan access token tracking yang aman.
 - [x] Menu public menampilkan varian/modifier aktif; cart browser tersimpan per token QR dan checkout/tracking memakai data server.
 - [x] State machine order terpusat, timeline mencatat actor/timestamp, dan status staff dibatasi oleh permission.
+- [x] Realtime order board dan customer tracking melalui Laravel Reverb dengan reconnect dan fallback polling.
+- [x] Notifikasi visual/audio order baru dengan preference staf per outlet, deduplikasi event/polling, dan aksesibilitas live announcement.
+- [x] Integrasi Midtrans Snap Sandbox: sesi checkout setelah order tersimpan, redirect pelanggan, dan webhook signature native.
 
 ## Task Berikutnya - Backend Foundation
 
@@ -86,12 +89,12 @@ Beberapa halaman marketing dan fitur realtime/notifikasi masih menggunakan data 
 - [x] Implementasikan cart browser yang terikat token QR serta validasi ulang server-side.
 - [x] Buat order, payment pending, order item, modifier, snapshot harga/pajak, nomor order, access token, dan idempotency key dalam transaction.
 - [x] Terapkan state machine order dan catat setiap transisi beserta actor dan timestamp.
-- [ ] Hubungkan live order board dan customer tracking melalui Laravel Reverb dengan reconnect/fallback polling.
-- [ ] Tambahkan notifikasi visual/audio order baru dengan preferensi staf.
+- [x] Hubungkan live order board dan customer tracking melalui Laravel Reverb dengan reconnect/fallback polling.
+- [x] Tambahkan notifikasi visual/audio order baru dengan preferensi staf.
 
 ## Task Berikutnya - Payment dan SaaS
 
-- [ ] Buat payment adapter dan integrasi sandbox gateway Indonesia.
+- [x] Buat payment adapter dan integrasi sandbox gateway Indonesia.
 - [x] Implementasikan kontrak webhook generik dengan signature bertimestamp, idempotency event, nominal/currency verification, expiry, dan proteksi downgrade.
 - [ ] Tambahkan adapter vendor, retry, dan reconciliation gateway.
 - [ ] Pastikan order hanya masuk produksi setelah payment terverifikasi `paid`.

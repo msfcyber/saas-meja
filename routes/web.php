@@ -43,6 +43,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('context/outlet/{outlet}', SwitchOutletController::class)->name('context.outlet.switch');
         Route::get('dashboard', [DashboardController::class, 'index'])->middleware('permission:order.view')->name('dashboard');
         Route::get('orders', [OrderController::class, 'index'])->middleware('permission:order.view')->name('orders');
+        Route::put('orders/notifications', [OrderController::class, 'updateNotificationPreferences'])->middleware('permission:order.view')->name('orders.notifications.update');
         Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->middleware('permission:order.update_status')->name('orders.status.update');
         Route::get('products', [ProductController::class, 'index'])->middleware('permission:menu.manage')->name('products');
         Route::post('products', [ProductController::class, 'store'])->middleware('permission:menu.manage')->name('products.store');

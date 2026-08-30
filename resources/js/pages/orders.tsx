@@ -1,5 +1,6 @@
 import { Head, router } from "@inertiajs/react";
 import {
+    BellOff,
     BellRing,
     ChevronRight,
     Clock3,
@@ -9,8 +10,10 @@ import {
     Volume2,
     VolumeX,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { useRealtime } from "@/hooks/use-realtime";
 
 type OrderStatus = "paid" | "accepted" | "preparing" | "ready" | "served" | "completed";
 type FilterStatus = "active" | OrderStatus;
@@ -41,8 +44,22 @@ type StaffOrder = {
     items: OrderItem[];
 };
 
+type OrderNotification = {
+    id: number;
+    number: string;
+    table_name: string | null;
+};
+
+type NotificationPreferences = {
+    visual_enabled: boolean;
+    sound_enabled: boolean;
+};
+
 type Props = {
     outlet: { name: string; timezone: string };
+    realtime?: { channel: string } | null;
+    notifications: NotificationPreferences;
+    notification_orders: OrderNotification[];
     filters: { search: string; status: FilterStatus };
     counts: Record<FilterStatus, number>;
     orders: StaffOrder[];
@@ -116,10 +133,187 @@ function formatAge(createdAt: string): string {
     return `${Math.floor(minutes / 60)}j ${String(minutes % 60).padStart(2, "0")}m`;
 }
 
-export default function Orders({ outlet, filters, counts, orders }: Props) {
+function isNewOrderEvent(payload: unknown): payload is { order: StaffOrder } {
+    if (typeof payload !== "object" || payload === null || !("order" in payload)) {
+        return false;
+    }
+
+    const order = (payload as { order?: unknown }).order;
+
+    return (
+        typeof order === "object" &&
+        order !== null &&
+        "id" in order &&
+        "number" in order &&
+        "status" in order
+    );
+}
+
+export default function Orders({
+    outlet,
+    realtime,
+    notifications,
+    notification_orders: notificationOrders,
+    filters,
+    counts,
+    orders,
+}: Props) {
     const [search, setSearch] = useState(filters.search);
-    const [soundEnabled, setSoundEnabled] = useState(true);
     const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
+    const [notificationPreferences, setNotificationPreferences] =
+        useState<NotificationPreferences>(notifications);
+    const [liveAnnouncement, setLiveAnnouncement] = useState("");
+    const audioContext = useRef<AudioContext | null>(null);
+    const announcedOrderIds = useRef(new Set<number>());
+    const hasLoadedNotificationOrders = useRef(false);
+
+    useEffect(() => {
+        setNotificationPreferences(notifications);
+    }, [notifications]);
+
+    useEffect(() => {
+        return () => {
+            const context = audioContext.current;
+            audioContext.current = null;
+            void context?.close();
+        };
+    }, []);
+
+    function getAudioContext(): AudioContext | null {
+        if (typeof window === "undefined" || !window.AudioContext) {
+            return null;
+        }
+
+        const context = audioContext.current ?? new window.AudioContext();
+        audioContext.current = context;
+
+        if (context.state === "suspended") {
+            void context.resume();
+        }
+
+        return context;
+    }
+
+    function playNewOrderTone() {
+        const context = getAudioContext();
+
+        if (context === null) {
+            return;
+        }
+
+        [880, 1175].forEach((frequency, index) => {
+            const oscillator = context.createOscillator();
+            const gain = context.createGain();
+            const start = context.currentTime + index * 0.16;
+
+            oscillator.type = "sine";
+            oscillator.frequency.setValueAtTime(frequency, start);
+            gain.gain.setValueAtTime(0.0001, start);
+            gain.gain.exponentialRampToValueAtTime(0.12, start + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.13);
+            oscillator.connect(gain).connect(context.destination);
+            oscillator.start(start);
+            oscillator.stop(start + 0.14);
+        });
+    }
+
+    const unlockAudio = useEffectEvent(() => {
+        getAudioContext();
+    });
+
+    useEffect(() => {
+        if (!notificationPreferences.sound_enabled) {
+            return;
+        }
+
+        const onPointerDown = () => {
+            unlockAudio();
+        };
+
+        document.addEventListener("pointerdown", onPointerDown, { once: true });
+
+        return () => document.removeEventListener("pointerdown", onPointerDown);
+    }, [notificationPreferences.sound_enabled]);
+
+    const announceNewOrder = useEffectEvent((order: OrderNotification) => {
+        if (announcedOrderIds.current.has(order.id)) {
+            return;
+        }
+
+        announcedOrderIds.current.add(order.id);
+        const table = order.table_name ? ` untuk ${order.table_name}` : "";
+        const message = `Order baru #${order.number}${table}.`;
+
+        setLiveAnnouncement(message);
+
+        if (notificationPreferences.visual_enabled) {
+            toast("Order baru masuk", {
+                description: message,
+                duration: 5_000,
+            });
+        }
+
+        if (notificationPreferences.sound_enabled) {
+            playNewOrderTone();
+        }
+    });
+
+    useEffect(() => {
+        if (!hasLoadedNotificationOrders.current) {
+            notificationOrders.forEach((order) => {
+                announcedOrderIds.current.add(order.id);
+            });
+            hasLoadedNotificationOrders.current = true;
+
+            return;
+        }
+
+        notificationOrders.forEach((order) => {
+            announceNewOrder(order);
+        });
+    }, [notificationOrders]);
+
+    function reloadBoard() {
+        router.reload({
+            only: ["orders", "counts", "notification_orders"],
+        });
+    }
+
+    const realtimeStatus = useRealtime({
+        enabled: Boolean(realtime?.channel),
+        channel: realtime?.channel ?? "",
+        channelType: "private",
+        event: ".order.status.updated",
+        onEvent: (payload) => {
+            if (isNewOrderEvent(payload) && payload.order.status === "paid") {
+                announceNewOrder({
+                    id: payload.order.id,
+                    number: payload.order.number,
+                    table_name: payload.order.table?.name ?? null,
+                });
+            }
+
+            reloadBoard();
+        },
+        onRefresh: reloadBoard,
+    });
+
+    const realtimeLabel =
+        realtimeStatus === "connected"
+            ? "Realtime"
+            : realtimeStatus === "polling"
+              ? "Polling"
+              : realtimeStatus === "offline"
+                ? "Offline"
+                : realtimeStatus === "disabled"
+                  ? "Database"
+                  : "Menghubungkan";
+    const realtimeTone =
+        realtimeStatus === "connected"
+            ? "bg-emerald-50 text-emerald-700"
+            : realtimeStatus === "offline"
+              ? "bg-amber-50 text-amber-700"
+              : "bg-secondary text-muted-foreground";
 
     function applyFilters(status: FilterStatus = filters.status) {
         router.get(
@@ -127,6 +321,30 @@ export default function Orders({ outlet, filters, counts, orders }: Props) {
             { search: search || undefined, status: status === "active" ? undefined : status },
             { preserveState: true, preserveScroll: true, replace: true },
         );
+    }
+
+    function updateNotificationPreferences(next: NotificationPreferences) {
+        const previous = notificationPreferences;
+
+        setNotificationPreferences(next);
+        router.put("/orders/notifications", next, {
+            preserveScroll: true,
+            preserveState: true,
+            onError: () => setNotificationPreferences(previous),
+        });
+    }
+
+    function toggleSound() {
+        const next = {
+            ...notificationPreferences,
+            sound_enabled: !notificationPreferences.sound_enabled,
+        };
+
+        if (next.sound_enabled) {
+            playNewOrderTone();
+        }
+
+        updateNotificationPreferences(next);
     }
 
     function advance(order: StaffOrder) {
@@ -151,6 +369,9 @@ export default function Orders({ outlet, filters, counts, orders }: Props) {
         <>
             <Head title="Live order" />
             <div className="flex min-h-0 flex-1 flex-col">
+                <p className="sr-only" aria-live="polite">
+                    {liveAnnouncement}
+                </p>
                 <div className="border-b bg-card px-4 py-5 sm:px-6 lg:px-8">
                     <div className="mx-auto flex max-w-[1600px] flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                         <div>
@@ -158,9 +379,13 @@ export default function Orders({ outlet, filters, counts, orders }: Props) {
                                 <h1 className="font-display text-3xl font-bold tracking-tight">
                                     Live order
                                 </h1>
-                                <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
-                                    <span className="size-1.5 rounded-full bg-emerald-500" />
-                                    Database
+                                <span
+                                    className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${realtimeTone}`}
+                                >
+                                    <span
+                                        className={`size-1.5 rounded-full ${realtimeStatus === "connected" ? "bg-emerald-500" : "bg-current"}`}
+                                    />
+                                    {realtimeLabel}
                                 </span>
                             </div>
                             <p className="mt-1 text-sm text-muted-foreground">
@@ -170,11 +395,33 @@ export default function Orders({ outlet, filters, counts, orders }: Props) {
                         <div className="flex flex-wrap items-center gap-2">
                             <button
                                 type="button"
-                                onClick={() => setSoundEnabled((enabled) => !enabled)}
+                                onClick={() =>
+                                    updateNotificationPreferences({
+                                        ...notificationPreferences,
+                                        visual_enabled:
+                                            !notificationPreferences.visual_enabled,
+                                    })
+                                }
                                 className="flex min-h-11 items-center gap-2 rounded-full border bg-background px-4 text-sm font-bold"
-                                aria-pressed={soundEnabled}
+                                aria-pressed={notificationPreferences.visual_enabled}
                             >
-                                {soundEnabled ? (
+                                {notificationPreferences.visual_enabled ? (
+                                    <BellRing className="size-4 text-primary" aria-hidden="true" />
+                                ) : (
+                                    <BellOff
+                                        className="size-4 text-muted-foreground"
+                                        aria-hidden="true"
+                                    />
+                                )}
+                                Visual {notificationPreferences.visual_enabled ? "aktif" : "mati"}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={toggleSound}
+                                className="flex min-h-11 items-center gap-2 rounded-full border bg-background px-4 text-sm font-bold"
+                                aria-pressed={notificationPreferences.sound_enabled}
+                            >
+                                {notificationPreferences.sound_enabled ? (
                                     <Volume2 className="size-4 text-primary" aria-hidden="true" />
                                 ) : (
                                     <VolumeX
@@ -182,7 +429,7 @@ export default function Orders({ outlet, filters, counts, orders }: Props) {
                                         aria-hidden="true"
                                     />
                                 )}
-                                Suara {soundEnabled ? "aktif" : "mati"}
+                                Suara {notificationPreferences.sound_enabled ? "aktif" : "mati"}
                             </button>
                             <button
                                 type="button"

@@ -9,13 +9,16 @@ import {
     ShoppingBag,
     UtensilsCrossed,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { CustomerHeader } from "@/components/customer-header";
 import { formatCurrency, menuItems } from "@/data/demo";
+import { useRealtime } from "@/hooks/use-realtime";
 import type { CustomerOrder } from "@/types/customer";
 
 type Props = {
     access?: { valid: boolean; message: string | null };
     order?: CustomerOrder | null;
+    realtime?: { channel: string; poll_url: string } | null;
 };
 
 const statusFlow = [
@@ -127,7 +130,67 @@ const formatTime = (value: string | null | undefined) => {
         : new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit" }).format(date);
 };
 
-export default function Tracking({ access, order }: Props) {
+function isOrderEvent(payload: unknown): payload is { order: CustomerOrder } {
+    if (typeof payload !== "object" || payload === null || !("order" in payload)) {
+        return false;
+    }
+
+    const nextOrder = (payload as { order?: unknown }).order;
+
+    return (
+        typeof nextOrder === "object" &&
+        nextOrder !== null &&
+        "number" in nextOrder &&
+        "status" in nextOrder
+    );
+}
+
+export default function Tracking({ access, order, realtime }: Props) {
+    const [liveOrder, setLiveOrder] = useState<CustomerOrder | null>(order ?? null);
+
+    useEffect(() => {
+        setLiveOrder(order ?? null);
+    }, [order]);
+
+    async function refreshOrder(): Promise<void> {
+        if (!realtime?.poll_url) {
+            return;
+        }
+
+        const response = await fetch(realtime.poll_url, {
+            headers: { Accept: "application/json" },
+            credentials: "same-origin",
+            cache: "no-store",
+        });
+
+        if (!response.ok) {
+            throw new Error("Order tracking tidak dapat diperbarui.");
+        }
+
+        const body = (await response.json()) as { order?: CustomerOrder };
+
+        if (body.order) {
+            setLiveOrder(body.order);
+        }
+    }
+
+    const realtimeStatus = useRealtime({
+        enabled: Boolean(realtime?.channel && realtime?.poll_url),
+        channel: realtime?.channel ?? "",
+        channelType: "public",
+        event: ".order.status.updated",
+        onEvent: (payload) => {
+            if (isOrderEvent(payload)) {
+                setLiveOrder(payload.order);
+
+                return;
+            }
+
+            void refreshOrder().catch(() => undefined);
+        },
+        onRefresh: refreshOrder,
+    });
+
     if (access && !access.valid) {
         return (
             <>
@@ -161,7 +224,7 @@ export default function Tracking({ access, order }: Props) {
         );
     }
 
-    const displayOrder = order ?? demoOrder;
+    const displayOrder = liveOrder ?? demoOrder;
     const copy = statusCopy[displayOrder.status] ?? {
         label: displayOrder.status_label,
         headline: "Status pesanan diperbarui.",
@@ -210,7 +273,13 @@ export default function Tracking({ access, order }: Props) {
                                 <span>
                                     {displayOrder.payment_status === "pending"
                                         ? "Pembayaran menunggu verifikasi server"
-                                        : "Status diperbarui otomatis"}
+                                        : !realtime?.channel
+                                          ? "Status diperbarui otomatis"
+                                          : realtimeStatus === "connected"
+                                            ? "Status diperbarui realtime"
+                                            : realtimeStatus === "offline"
+                                              ? "Koneksi realtime terputus, mencoba lagi"
+                                              : "Status diperbarui berkala"}
                                 </span>
                             </div>
                         </div>

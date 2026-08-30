@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\OrderStatus;
+use App\Events\OrderStatusUpdated;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -40,6 +41,12 @@ final class OrderStatusService
         $order->update($updates);
 
         $this->record($order, $from, $to, $actorType, $actorId, $note);
+        OrderStatusUpdated::dispatch(
+            (int) $order->getKey(),
+            (int) $order->tenant_id,
+            (int) $order->outlet_id,
+            (string) $order->access_token_hash,
+        );
 
         return true;
     }
