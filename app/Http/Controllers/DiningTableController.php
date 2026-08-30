@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Tables\StoreDiningTableRequest;
 use App\Models\DiningTable;
+use App\Services\SubscriptionEntitlementService;
 use App\Services\TableQrCodeService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -56,9 +58,23 @@ class DiningTableController extends Controller
         ]);
     }
 
-    public function store(StoreDiningTableRequest $request, TenantContext $context, TableQrCodeService $qrCodes): RedirectResponse
-    {
+    public function store(
+        StoreDiningTableRequest $request,
+        TenantContext $context,
+        TableQrCodeService $qrCodes,
+        SubscriptionEntitlementService $entitlements,
+    ): RedirectResponse {
         $this->authorize('create', DiningTable::class);
+
+        $tenant = $context->tenant();
+
+        if ($tenant === null || ! $entitlements->canAdd($tenant, SubscriptionEntitlementService::LIMIT_ACTIVE_TABLES)) {
+            throw ValidationException::withMessages([
+                'subscription' => $tenant === null
+                    ? 'Workspace aktif tidak ditemukan.'
+                    : $entitlements->limitMessage($tenant, SubscriptionEntitlementService::LIMIT_ACTIVE_TABLES),
+            ]);
+        }
 
         DB::transaction(function () use ($request, $context, $qrCodes): void {
             $table = DiningTable::query()->create([

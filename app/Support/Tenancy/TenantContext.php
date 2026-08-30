@@ -24,6 +24,11 @@ class TenantContext
         return $this->tenant?->getKey();
     }
 
+    public function tenantOrFail(): Tenant
+    {
+        return $this->tenant ?? throw new LogicException('An active tenant context is required.');
+    }
+
     public function outlet(): ?Outlet
     {
         return $this->outlet;

@@ -38,6 +38,8 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [processingTableId, setProcessingTableId] = useState<number | null>(null);
     const form = useForm({ name: "", code: "", zone: "", capacity: "4", is_active: true });
+    const subscriptionError = (form.errors as unknown as Record<string, string | undefined>)
+        .subscription;
 
     function createTable(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -291,6 +293,7 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={createTable} className="grid gap-4">
+                        <InputError message={subscriptionError} />
                         <div className="grid gap-2">
                             <Label htmlFor="table-name">Nama meja</Label>
                             <Input

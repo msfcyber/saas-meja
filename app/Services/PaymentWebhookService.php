@@ -15,7 +15,10 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 final class PaymentWebhookService
 {
-    public function __construct(private readonly OrderStatusService $statuses) {}
+    public function __construct(
+        private readonly OrderStatusService $statuses,
+        private readonly AuditLogService $audits,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data
@@ -83,9 +86,12 @@ final class PaymentWebhookService
                 ->where('outlet_id', $payment->outlet_id)
                 ->lockForUpdate()
                 ->firstOrFail();
+            $previousPaymentStatus = $payment->status;
+            $previousOrderStatus = $order->status;
             $target = $this->targetStatus((string) $data['event_type']);
             $isNewer = $payment->last_webhook_at === null
                 || $occurredAt->isAfter(CarbonImmutable::parse((string) $payment->last_webhook_at));
+            $statusChanged = false;
 
             $payment->provider = $provider;
 
@@ -93,12 +99,33 @@ final class PaymentWebhookService
                 if ($this->canTransitionPayment($payment->status, $target)) {
                     if ($this->applyPaymentStatus($payment, $order, $target)) {
                         $payment->last_webhook_at = $occurredAt;
+                        $statusChanged = $previousPaymentStatus !== $payment->status;
                     }
                 }
             }
 
             $payment->save();
             $event->update(['processed_at' => now()]);
+
+            if ($statusChanged) {
+                $this->audits->record('payment.status_changed', [
+                    'tenant_id' => (int) $payment->tenant_id,
+                    'outlet_id' => (int) $payment->outlet_id,
+                    'actor_type' => 'system',
+                    'auditable_type' => Payment::class,
+                    'auditable_id' => (int) $payment->getKey(),
+                    'old_values' => [
+                        'status' => $previousPaymentStatus->value,
+                        'order_status' => $previousOrderStatus->value,
+                    ],
+                    'new_values' => [
+                        'status' => $payment->status->value,
+                        'order_status' => $order->status->value,
+                        'event_type' => (string) $data['event_type'],
+                        'provider' => $provider,
+                    ],
+                ]);
+            }
 
             return $this->result($payment, false);
         }, attempts: 3);

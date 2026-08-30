@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\TableQrToken;
 use App\Models\Tenant;
+use App\Services\SubscriptionEntitlementService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -20,7 +21,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class PublicMenuController extends Controller
 {
-    public function show(Request $request, string $qrToken): Response
+    public function show(Request $request, string $qrToken, SubscriptionEntitlementService $entitlements): Response
     {
         if (strlen($qrToken) !== 64 || ! ctype_xdigit($qrToken)) {
             return $this->invalid($request, 'QR meja tidak valid atau sudah tidak berlaku.');
@@ -41,6 +42,10 @@ class PublicMenuController extends Controller
 
         if ($tenant === null) {
             return $this->invalid($request, 'Menu sedang tidak tersedia.');
+        }
+
+        if (! $entitlements->canAcceptOrders($tenant)) {
+            return $this->invalid($request, 'Menu sedang tidak tersedia karena subscription belum aktif.');
         }
 
         $outlet = Outlet::withoutGlobalScopes()

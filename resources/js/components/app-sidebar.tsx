@@ -1,5 +1,14 @@
 import { Link, router, usePage } from "@inertiajs/react";
-import { ClipboardList, LayoutDashboard, QrCode, Settings2, Soup } from "lucide-react";
+import {
+    BarChart3,
+    ClipboardList,
+    CreditCard,
+    LayoutDashboard,
+    QrCode,
+    Settings2,
+    ShieldCheck,
+    Soup,
+} from "lucide-react";
 import AppLogo from "@/components/app-logo";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
@@ -47,9 +56,29 @@ const mainNavItems: PermissionNavItem[] = [
         permission: "table.manage",
     },
     {
+        title: "Subscription",
+        href: "/subscription",
+        icon: CreditCard,
+        permission: "subscription.manage",
+    },
+    {
+        title: "Laporan penjualan",
+        href: "/reports/sales",
+        icon: BarChart3,
+        permission: "report.view",
+    },
+    {
         title: "Pengaturan",
         href: "/settings/profile",
         icon: Settings2,
+    },
+];
+
+const platformNavItems: NavItem[] = [
+    {
+        title: "Platform",
+        href: "/platform",
+        icon: ShieldCheck,
     },
 ];
 
@@ -65,7 +94,14 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href={dashboard()} prefetch>
+                            <Link
+                                href={
+                                    tenancy.platform_admin && !tenancy.tenant
+                                        ? "/platform"
+                                        : dashboard()
+                                }
+                                prefetch
+                            >
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
@@ -74,6 +110,7 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
+                {tenancy.platform_admin && <NavMain items={platformNavItems} label="Platform" />}
                 {tenancy.tenant && (
                     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
                         <SidebarGroupLabel>Context aktif</SidebarGroupLabel>

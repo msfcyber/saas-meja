@@ -6,7 +6,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use Illuminate\Support\Facades\Http;
 
-final class MidtransPaymentGateway
+final class MidtransPaymentGateway implements PaymentGateway
 {
     /**
      * @return array{provider: string, redirect_url: string, expires_at: string|null}
@@ -73,6 +73,7 @@ final class MidtransPaymentGateway
         try {
             $response = Http::acceptJson()
                 ->withBasicAuth($serverKey, '')
+                ->retry([250, 750])
                 ->timeout(10)
                 ->post((string) config('payments.midtrans.snap_url'), $payload)
                 ->throw()
@@ -97,6 +98,60 @@ final class MidtransPaymentGateway
         $payment->update(['metadata' => $metadata]);
 
         return $this->result($payment, $redirectUrl);
+    }
+
+    /** @return array<string, mixed> */
+    public function getStatus(Payment $payment): array
+    {
+        $serverKey = $this->serverKey();
+        $providerReference = (string) $payment->provider_reference;
+
+        if ($providerReference === '') {
+            throw new PaymentGatewayException('Referensi payment Midtrans tidak tersedia.');
+        }
+
+        if ($payment->currency !== 'IDR') {
+            throw new PaymentGatewayException('Midtrans Snap saat ini hanya mendukung payment IDR.');
+        }
+
+        $url = rtrim((string) config('payments.midtrans.status_url'), '/').'/'.rawurlencode($providerReference).'/status';
+
+        try {
+            $response = Http::acceptJson()
+                ->withBasicAuth($serverKey, '')
+                ->retry([250, 750])
+                ->timeout(10)
+                ->get($url)
+                ->throw()
+                ->json();
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            throw new PaymentGatewayException('Status pembayaran belum dapat diperiksa.');
+        }
+
+        if (! is_array($response)
+            || ($response['order_id'] ?? null) !== $providerReference
+            || ! is_string($response['transaction_id'] ?? null)
+            || ! is_string($response['transaction_status'] ?? null)
+            || ! is_string($response['status_code'] ?? null)
+            || ! is_string($response['gross_amount'] ?? null)
+            || ! is_string($response['transaction_time'] ?? null)) {
+            throw new PaymentGatewayException('Respons status Midtrans tidak valid.');
+        }
+
+        return $response;
+    }
+
+    private function serverKey(): string
+    {
+        $serverKey = config('payments.midtrans.server_key');
+
+        if (! is_string($serverKey) || trim($serverKey) === '') {
+            throw new PaymentGatewayException('Midtrans belum dikonfigurasi.');
+        }
+
+        return $serverKey;
     }
 
     /**

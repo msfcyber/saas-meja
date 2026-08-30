@@ -14,6 +14,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\SubscriptionService;
 use App\Services\TableQrCodeService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -39,6 +40,8 @@ class DemoTenantSeeder extends Seeder
                 'timezone' => 'Asia/Jakarta',
             ],
         );
+
+        app(SubscriptionService::class)->provisionTrial($tenant);
 
         $tenant->users()->syncWithoutDetaching([
             $owner->id => [

@@ -4,10 +4,24 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToOutlet;
 use App\Models\Concerns\BelongsToTenant;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property int $tenant_id
+ * @property int $outlet_id
+ * @property int $payment_id
+ * @property string $provider
+ * @property string $event_id
+ * @property string $event_type
+ * @property int $amount
+ * @property string $currency
+ * @property CarbonImmutable $occurred_at
+ * @property CarbonImmutable|null $processed_at
+ */
 #[Fillable([
     'tenant_id',
     'outlet_id',

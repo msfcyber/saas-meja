@@ -111,7 +111,13 @@ class PublicOrderController extends Controller
             'realtime' => [
                 'channel' => OrderStatusUpdated::customerChannel((string) $order->access_token_hash),
                 'poll_url' => route('public.orders.show', ['accessToken' => $accessToken]),
+                'payment_start_url' => route('public.orders.payment.start', ['accessToken' => $accessToken]),
+                'receipt_url' => route('public.order.receipt', ['accessToken' => $accessToken]),
             ],
+            'payment' => $this->paymentPayload(
+                Payment::withoutGlobalScopes()->where('order_id', $order->getKey())->latest('id')->firstOrFail(),
+                $accessToken,
+            ),
         ]);
     }
 
@@ -128,6 +134,22 @@ class PublicOrderController extends Controller
         return response()->json([
             'order' => (new OrderResource($order))->resolve($request),
         ]);
+    }
+
+    public function paymentStatus(string $accessToken): JsonResponse
+    {
+        $order = $this->findOrder($accessToken);
+
+        if ($order === null) {
+            return response()->json(['message' => 'Order tidak ditemukan.'], 404);
+        }
+
+        $payment = Payment::withoutGlobalScopes()
+            ->where('order_id', $order->getKey())
+            ->latest('id')
+            ->firstOrFail();
+
+        return response()->json($this->paymentPayload($payment, $accessToken));
     }
 
     public function startPayment(
@@ -184,5 +206,23 @@ class PublicOrderController extends Controller
             'outlet' => fn ($query) => $query->withoutGlobalScopes(),
         ]);
         $order->items->load(['modifiers' => fn ($query) => $query->withoutGlobalScopes()]);
+    }
+
+    /** @return array{status: string, provider: string|null, redirect_url: string|null, start_url: string, expires_at: string|null} */
+    private function paymentPayload(Payment $payment, string $accessToken): array
+    {
+        $metadata = is_array($payment->metadata) ? $payment->metadata : [];
+        $midtrans = is_array($metadata['midtrans'] ?? null) ? $metadata['midtrans'] : [];
+        $redirectUrl = $midtrans['redirect_url'] ?? null;
+
+        return [
+            'status' => $payment->status->value,
+            'provider' => $payment->provider,
+            'redirect_url' => $payment->status === PaymentStatus::Pending && is_string($redirectUrl)
+                ? $redirectUrl
+                : null,
+            'start_url' => route('public.orders.payment.start', ['accessToken' => $accessToken]),
+            'expires_at' => $payment->expires_at?->toIso8601String(),
+        ];
     }
 }

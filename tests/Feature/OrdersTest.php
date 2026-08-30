@@ -13,9 +13,11 @@ use App\Models\Role;
 use App\Models\StaffNotificationPreference;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\OrderStatusService;
 use Illuminate\Support\Facades\Event;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\PermissionRegistrar;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 /** @return array{user: User, tenant: Tenant, outlet: Outlet, table: DiningTable} */
 function createOrderBoardWorkspace(bool $canUpdate = true): array
@@ -69,6 +71,30 @@ test('staff order board only exposes orders from the active outlet', function ()
             ->where('notifications.sound_enabled', true)
             ->has('orders', 1)
             ->where('orders.0.id', $visibleOrder->id));
+});
+
+test('staff with payment access can print a paid order receipt from the active outlet', function () {
+    $workspace = createOrderBoardWorkspace();
+    app(PermissionRegistrar::class)->setPermissionsTeamId($workspace['tenant']->id);
+    $paymentPermission = Permission::query()->firstOrCreate([
+        'name' => 'payment.view',
+        'guard_name' => 'web',
+    ]);
+    $workspace['user']->givePermissionTo($paymentPermission);
+    $order = Order::factory()->for($workspace['table'], 'table')->create([
+        'tenant_id' => $workspace['tenant']->id,
+        'outlet_id' => $workspace['outlet']->id,
+        'status' => OrderStatus::Paid,
+    ]);
+    Payment::factory()->for($order)->create([
+        'status' => PaymentStatus::Paid,
+        'paid_at' => now(),
+    ]);
+
+    $this->actingAs($workspace['user'])
+        ->get(route('orders.receipt', $order))
+        ->assertOk()
+        ->assertSee('#'.$order->order_number);
 });
 
 test('staff notification preferences are stored for the active outlet only', function () {
@@ -174,6 +200,19 @@ test('staff cannot bypass the order state machine', function () {
         ->assertConflict();
 
     expect($order->fresh()->status)->toBe(OrderStatus::Paid);
+});
+
+test('only a verified payment can move an awaiting order into paid', function () {
+    $workspace = createOrderBoardWorkspace();
+    $order = Order::factory()->for($workspace['table'], 'table')->create([
+        'tenant_id' => $workspace['tenant']->id,
+        'outlet_id' => $workspace['outlet']->id,
+        'status' => OrderStatus::AwaitingPayment,
+    ]);
+
+    expect(fn () => app(OrderStatusService::class)->transition($order, OrderStatus::Paid, 'user'))
+        ->toThrow(ConflictHttpException::class);
+    expect($order->fresh()->status)->toBe(OrderStatus::AwaitingPayment);
 });
 
 test('staff without status permission can view orders but cannot update them', function () {

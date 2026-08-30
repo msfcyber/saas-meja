@@ -62,6 +62,7 @@ class HandleInertiaRequests extends Middleware
                         ->toArray(),
                 'roles' => $request->user()?->getRoleNames()->values()->all() ?? [],
                 'permissions' => $request->user()?->getAllPermissions()->pluck('name')->values()->all() ?? [],
+                'platform_admin' => (bool) $request->user()?->is_platform_admin,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

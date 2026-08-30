@@ -20,7 +20,7 @@ use Spatie\Permission\PermissionRegistrar;
 function createOperationalWorkspace(array $permissions): array
 {
     $user = User::factory()->create();
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->withTrialSubscription()->create();
     $outlet = Outlet::factory()->for($tenant)->create();
     $tenant->users()->attach($user, ['status' => 'active', 'is_owner' => false, 'joined_at' => now()]);
 

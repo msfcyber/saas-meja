@@ -6,10 +6,14 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DiningTableController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\Platform\PlatformDashboardController;
 use App\Http\Controllers\ProductAvailabilityController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PublicMenuController;
 use App\Http\Controllers\PublicOrderController;
+use App\Http\Controllers\ReceiptController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TableQrCodeController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +31,10 @@ Route::get('o/{accessToken}', [PublicOrderController::class, 'show'])
     ->middleware('throttle:public-orders')
     ->name('public.order');
 
+Route::get('o/{accessToken}/receipt', [ReceiptController::class, 'showPublic'])
+    ->middleware('throttle:public-orders')
+    ->name('public.order.receipt');
+
 Route::prefix('demo')->group(function () {
     Route::inertia('menu', 'customer/menu')->name('demo.menu');
     Route::inertia('checkout', 'customer/checkout')->name('demo.checkout');
@@ -39,12 +47,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('context/tenant/{tenant}', SwitchTenantController::class)->name('context.tenant.switch');
 
+    Route::get('platform', PlatformDashboardController::class)
+        ->middleware('can:platform.admin')
+        ->name('platform.dashboard');
+
     Route::middleware('tenant.required')->group(function () {
         Route::post('context/outlet/{outlet}', SwitchOutletController::class)->name('context.outlet.switch');
         Route::get('dashboard', [DashboardController::class, 'index'])->middleware('permission:order.view')->name('dashboard');
+        Route::get('subscription', [SubscriptionController::class, 'index'])->middleware('permission:subscription.manage')->name('subscription');
+        Route::post('subscription/checkout', [SubscriptionController::class, 'checkout'])->middleware('permission:subscription.manage')->name('subscription.checkout');
+        Route::get('reports/sales', [ReportController::class, 'sales'])->middleware('permission:report.view')->name('reports.sales');
         Route::get('orders', [OrderController::class, 'index'])->middleware('permission:order.view')->name('orders');
         Route::put('orders/notifications', [OrderController::class, 'updateNotificationPreferences'])->middleware('permission:order.view')->name('orders.notifications.update');
         Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->middleware('permission:order.update_status')->name('orders.status.update');
+        Route::get('orders/{order}/receipt', [ReceiptController::class, 'showStaff'])->middleware('permission:payment.view')->name('orders.receipt');
         Route::get('products', [ProductController::class, 'index'])->middleware('permission:menu.manage')->name('products');
         Route::post('products', [ProductController::class, 'store'])->middleware('permission:menu.manage')->name('products.store');
         Route::patch('products/{product}/availability', ProductAvailabilityController::class)->middleware('permission:menu.manage')->name('products.availability.update');

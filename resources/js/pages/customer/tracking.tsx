@@ -18,7 +18,12 @@ import type { CustomerOrder } from "@/types/customer";
 type Props = {
     access?: { valid: boolean; message: string | null };
     order?: CustomerOrder | null;
-    realtime?: { channel: string; poll_url: string } | null;
+    realtime?: {
+        channel: string;
+        poll_url: string;
+        payment_start_url?: string;
+        receipt_url?: string;
+    } | null;
 };
 
 const statusFlow = [
@@ -147,6 +152,8 @@ function isOrderEvent(payload: unknown): payload is { order: CustomerOrder } {
 
 export default function Tracking({ access, order, realtime }: Props) {
     const [liveOrder, setLiveOrder] = useState<CustomerOrder | null>(order ?? null);
+    const [paymentStarting, setPaymentStarting] = useState(false);
+    const [paymentError, setPaymentError] = useState<string | null>(null);
 
     useEffect(() => {
         setLiveOrder(order ?? null);
@@ -171,6 +178,37 @@ export default function Tracking({ access, order, realtime }: Props) {
 
         if (body.order) {
             setLiveOrder(body.order);
+        }
+    }
+
+    async function continuePayment(): Promise<void> {
+        if (!realtime?.payment_start_url) {
+            return;
+        }
+
+        setPaymentStarting(true);
+        setPaymentError(null);
+
+        try {
+            const response = await fetch(realtime.payment_start_url, {
+                method: "POST",
+                headers: { Accept: "application/json" },
+                credentials: "same-origin",
+            });
+            const body = (await response.json()) as { redirect_url?: string; message?: string };
+
+            if (!response.ok || !body.redirect_url) {
+                throw new Error(body.message ?? "Sesi pembayaran belum dapat dibuat.");
+            }
+
+            window.location.assign(body.redirect_url);
+        } catch (exception) {
+            setPaymentError(
+                exception instanceof Error
+                    ? exception.message
+                    : "Sesi pembayaran belum dapat dibuat.",
+            );
+            setPaymentStarting(false);
         }
     }
 
@@ -392,25 +430,82 @@ export default function Tracking({ access, order, realtime }: Props) {
                         </dl>
                     </section>
 
+                    {displayOrder.payment_status === "pending" && realtime?.payment_start_url && (
+                        <section
+                            className="mt-6 rounded-[1.5rem] border border-primary/25 bg-primary/5 p-6 sm:p-8"
+                            aria-live="polite"
+                        >
+                            <p className="text-xs font-bold tracking-[0.14em] text-primary uppercase">
+                                Pembayaran belum selesai
+                            </p>
+                            <h2 className="font-display mt-2 text-2xl font-bold">
+                                Lanjutkan pembayaranmu.
+                            </h2>
+                            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                                Order belum masuk ke antrean dapur sampai pembayaran diverifikasi.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => void continuePayment()}
+                                disabled={paymentStarting}
+                                className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {paymentStarting ? "Membuka pembayaran..." : "Bayar sekarang"}
+                                <ChevronRight className="size-4" aria-hidden="true" />
+                            </button>
+                            {paymentError && (
+                                <p className="mt-3 text-sm font-semibold text-destructive" role="alert">
+                                    {paymentError}
+                                </p>
+                            )}
+                        </section>
+                    )}
+
                     <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                        <button
-                            type="button"
-                            disabled
-                            className="flex min-h-12 items-center justify-between rounded-full border bg-card px-5 text-sm font-bold opacity-60"
-                        >
-                            <span className="flex items-center gap-2">
-                                <ReceiptText className="size-4" aria-hidden="true" /> Lihat struk
-                                digital
-                            </span>
-                            <ChevronRight className="size-4" aria-hidden="true" />
-                        </button>
-                        <button
-                            type="button"
-                            disabled
-                            className="flex min-h-12 items-center justify-center gap-2 rounded-full border bg-card px-5 text-sm font-bold opacity-60"
-                        >
-                            <Download className="size-4" aria-hidden="true" /> Simpan detail pesanan
-                        </button>
+                        {displayOrder.payment_status !== "pending" && realtime?.receipt_url ? (
+                            <a
+                                href={realtime.receipt_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex min-h-12 items-center justify-between rounded-full border bg-card px-5 text-sm font-bold hover:bg-secondary"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <ReceiptText className="size-4" aria-hidden="true" /> Lihat struk
+                                    digital
+                                </span>
+                                <ChevronRight className="size-4" aria-hidden="true" />
+                            </a>
+                        ) : (
+                            <button
+                                type="button"
+                                disabled
+                                className="flex min-h-12 items-center justify-between rounded-full border bg-card px-5 text-sm font-bold opacity-60"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <ReceiptText className="size-4" aria-hidden="true" /> Lihat struk
+                                    digital
+                                </span>
+                                <ChevronRight className="size-4" aria-hidden="true" />
+                            </button>
+                        )}
+                        {displayOrder.payment_status !== "pending" && realtime?.receipt_url ? (
+                            <a
+                                href={realtime.receipt_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex min-h-12 items-center justify-center gap-2 rounded-full border bg-card px-5 text-sm font-bold hover:bg-secondary"
+                            >
+                                <Download className="size-4" aria-hidden="true" /> Cetak / simpan struk
+                            </a>
+                        ) : (
+                            <button
+                                type="button"
+                                disabled
+                                className="flex min-h-12 items-center justify-center gap-2 rounded-full border bg-card px-5 text-sm font-bold opacity-60"
+                            >
+                                <Download className="size-4" aria-hidden="true" /> Simpan detail pesanan
+                            </button>
+                        )}
                     </div>
                     <p className="mt-8 text-center text-xs leading-5 text-muted-foreground">
                         Simpan halaman ini untuk kembali melihat status pesanan.{" "}

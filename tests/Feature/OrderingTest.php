@@ -25,7 +25,7 @@ use Inertia\Testing\AssertableInertia as Assert;
  */
 function createOrderingWorkspace(): array
 {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->withTrialSubscription()->create();
     $outlet = Outlet::factory()->for($tenant)->create(['accepts_orders' => true]);
     $category = Category::factory()->for($outlet)->create(['is_active' => true]);
     $product = Product::factory()->for($category)->create([
@@ -271,6 +271,49 @@ test('customer tracking is scoped to the random order access token', function ()
         ->assertNotFound();
 });
 
+test('customer payment status exposes a safe retry URL without leaking gateway references', function () {
+    $workspace = createOrderingWorkspace();
+    $response = $this->postJson(route('public.orders.store'), orderingPayload($workspace))->assertCreated();
+    $accessToken = $response->json('access_token');
+
+    $this->getJson(route('public.orders.payment.status', ['accessToken' => $accessToken]))
+        ->assertOk()
+        ->assertJsonPath('status', PaymentStatus::Pending->value)
+        ->assertJsonPath('provider', 'midtrans')
+        ->assertJsonPath('redirect_url', null)
+        ->assertJsonPath('start_url', route('public.orders.payment.start', ['accessToken' => $accessToken]))
+        ->assertJsonMissingPath('provider_reference');
+
+    $this->getJson(route('public.orders.payment.status', ['accessToken' => str_repeat('b', 64)]))
+        ->assertNotFound();
+});
+
+test('receipt is unavailable before payment and uses immutable order snapshots after payment', function () {
+    $workspace = createOrderingWorkspace();
+    $response = $this->postJson(route('public.orders.store'), orderingPayload($workspace))->assertCreated();
+    $accessToken = $response->json('access_token');
+    $order = createOrder($response);
+    $payment = Payment::withoutGlobalScopes()->where('order_id', $order->id)->firstOrFail();
+    $snapshotName = $workspace['product']->name;
+
+    $this->get(route('public.order.receipt', ['accessToken' => $accessToken]))
+        ->assertNotFound();
+
+    $workspace['product']->update(['name' => 'Nama produk terbaru']);
+    $payment->update(['status' => PaymentStatus::Paid, 'paid_at' => now()]);
+    $order->update(['status' => OrderStatus::Paid, 'paid_at' => now()]);
+
+    $this->get(route('public.order.receipt', ['accessToken' => $accessToken]))
+        ->assertOk()
+        ->assertSee($snapshotName)
+        ->assertDontSee('Nama produk terbaru');
+    $this->getJson(route('public.orders.receipt', ['accessToken' => $accessToken]))
+        ->assertOk()
+        ->assertJsonPath('receipt.order.number', $order->order_number)
+        ->assertJsonPath('receipt.items.0.product_name', $snapshotName)
+        ->assertJsonPath('receipt.payment.status', PaymentStatus::Paid->value);
+});
+
 test('a valid payment webhook marks payment and order as paid exactly once', function () {
     config(['payments.webhook_secret' => 'test-webhook-secret']);
     $workspace = createOrderingWorkspace();
@@ -347,6 +390,45 @@ test('a valid Midtrans notification marks payment and order as paid exactly once
     expect($payment->fresh()->status)->toBe(PaymentStatus::Paid)
         ->and($order->fresh()->status)->toBe(OrderStatus::Paid)
         ->and(PaymentEvent::withoutGlobalScopes()->count())->toBe(1);
+});
+
+test('payment reconciliation retrieves a Midtrans status and applies it through the webhook state machine', function () {
+    config(['payments.midtrans.server_key' => 'SB-Mid-server-key']);
+    $workspace = createOrderingWorkspace();
+    $orderResponse = $this->postJson(route('public.orders.store'), orderingPayload($workspace))->assertCreated();
+    $order = createOrder($orderResponse);
+    $payment = Payment::withoutGlobalScopes()->where('order_id', $order->id)->firstOrFail();
+    $occurredAt = now()->format('Y-m-d H:i:s');
+    $grossAmount = $payment->amount.'.00';
+    $statusPayload = [
+        'transaction_id' => 'midtrans-status-123',
+        'transaction_status' => 'settlement',
+        'order_id' => $payment->provider_reference,
+        'status_code' => '200',
+        'gross_amount' => $grossAmount,
+        'currency' => 'IDR',
+        'transaction_time' => $occurredAt,
+        'settlement_time' => $occurredAt,
+        'payment_type' => 'qris',
+        'fraud_status' => 'accept',
+    ];
+    $statusPayload['signature_key'] = hash(
+        'sha512',
+        $statusPayload['order_id'].$statusPayload['status_code'].$grossAmount.'SB-Mid-server-key',
+    );
+    Http::fake([
+        'https://api.sandbox.midtrans.com/v2/*/status' => Http::response($statusPayload),
+    ]);
+
+    $this->artisan('payments:reconcile')
+        ->expectsOutputToContain('1 diperiksa')
+        ->assertSuccessful();
+
+    expect($payment->fresh()->status)->toBe(PaymentStatus::Paid)
+        ->and($order->fresh()->status)->toBe(OrderStatus::Paid)
+        ->and(PaymentEvent::withoutGlobalScopes()->count())->toBe(1);
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
+        && $request->url() === 'https://api.sandbox.midtrans.com/v2/'.rawurlencode($payment->provider_reference).'/status');
 });
 
 test('a Midtrans notification rejects an invalid signature without changing state', function () {

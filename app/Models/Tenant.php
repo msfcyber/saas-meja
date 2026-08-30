@@ -39,6 +39,24 @@ class Tenant extends Model
         return $this->hasMany(Role::class);
     }
 
+    /** @return HasMany<Subscription, $this> */
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+    /** @return HasMany<SaasInvoice, $this> */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(SaasInvoice::class);
+    }
+
+    /** @return HasMany<AuditLog, $this> */
+    public function auditLogs(): HasMany
+    {
+        return $this->hasMany(AuditLog::class);
+    }
+
     protected function casts(): array
     {
         return [

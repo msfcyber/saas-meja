@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\MidtransSubscriptionWebhookService;
 use App\Services\MidtransWebhookService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class MidtransWebhookController extends Controller
 {
-    public function __invoke(Request $request, MidtransWebhookService $webhooks): JsonResponse
-    {
+    public function __invoke(
+        Request $request,
+        MidtransWebhookService $webhooks,
+        MidtransSubscriptionWebhookService $subscriptionWebhooks,
+    ): JsonResponse {
         $data = $request->validate([
             'transaction_id' => ['required', 'string', 'max:150'],
             'transaction_status' => ['required', 'string', 'max:50'],
@@ -22,6 +26,10 @@ class MidtransWebhookController extends Controller
             'fraud_status' => ['nullable', 'string', 'max:30'],
             'payment_type' => ['nullable', 'string', 'max:50'],
         ]);
+
+        if (str_starts_with((string) $data['order_id'], 'meja-subscription-')) {
+            return response()->json($subscriptionWebhooks->handle($data));
+        }
 
         return response()->json($webhooks->handle($data));
     }

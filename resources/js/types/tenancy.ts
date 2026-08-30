@@ -17,4 +17,5 @@ export type TenancyContext = {
     outlets: OutletOption[];
     roles: string[];
     permissions: string[];
+    platform_admin: boolean;
 };

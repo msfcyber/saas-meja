@@ -12,6 +12,8 @@ use Carbon\CarbonImmutable;
 
 final class PublicTableAccessService
 {
+    public function __construct(private readonly SubscriptionEntitlementService $entitlements) {}
+
     public function resolve(string $plainToken): ?PublicTableAccess
     {
         if (strlen($plainToken) !== 64 || ! ctype_xdigit($plainToken)) {
@@ -32,6 +34,10 @@ final class PublicTableAccessService
             ->first();
 
         if ($tenant === null) {
+            return null;
+        }
+
+        if (! $this->entitlements->canAcceptOrders($tenant)) {
             return null;
         }
 

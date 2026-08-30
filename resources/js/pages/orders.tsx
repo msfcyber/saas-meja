@@ -5,6 +5,7 @@ import {
     ChevronRight,
     Clock3,
     Filter,
+    ReceiptText,
     Search,
     UtensilsCrossed,
     Volume2,
@@ -575,6 +576,17 @@ export default function Orders({
                                                 {formatMoney(order.grand_total, order.currency)}
                                             </strong>
                                         </div>
+                                        {order.payment_status === "paid" && (
+                                            <a
+                                                href={`/orders/${order.id}/receipt`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="mt-4 flex min-h-10 items-center justify-center gap-2 rounded-full border text-xs font-bold hover:bg-secondary"
+                                            >
+                                                <ReceiptText className="size-3.5" aria-hidden="true" />
+                                                Cetak struk
+                                            </a>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={() => advance(order)}

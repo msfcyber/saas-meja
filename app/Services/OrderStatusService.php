@@ -24,6 +24,10 @@ final class OrderStatusService
             return false;
         }
 
+        if ($to === OrderStatus::Paid && $actorType !== 'payment_webhook') {
+            throw new ConflictHttpException('Order hanya dapat menjadi paid setelah payment terverifikasi.');
+        }
+
         if (! $from->canTransitionTo($to)) {
             throw new ConflictHttpException("Transisi order {$from->value} ke {$to->value} tidak diizinkan.");
         }

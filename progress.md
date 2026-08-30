@@ -81,7 +81,7 @@ Beberapa halaman marketing dan fitur realtime/notifikasi masih menggunakan data 
 - [x] Hubungkan dashboard, produk, dan meja ke controller Inertia serta validasi Form Request.
 - [x] Implementasikan upload dan optimasi gambar produk ke storage tenant-aware.
 - [x] Implementasikan QR token acak, validasi status tenant/outlet/meja, menu publik, download/cetak, pencabutan, dan regenerasi.
-- Validasi subscription masih menunggu domain subscription; checkout publik dasar sudah tersedia dengan payment `pending`.
+- [x] Validasi subscription tenant aktif atau trial pada QR, menu, checkout, dan pembuatan order publik.
 
 ## Task Berikutnya - Ordering
 
@@ -96,11 +96,15 @@ Beberapa halaman marketing dan fitur realtime/notifikasi masih menggunakan data 
 
 - [x] Buat payment adapter dan integrasi sandbox gateway Indonesia.
 - [x] Implementasikan kontrak webhook generik dengan signature bertimestamp, idempotency event, nominal/currency verification, expiry, dan proteksi downgrade.
-- [ ] Tambahkan adapter vendor, retry, dan reconciliation gateway.
-- [ ] Pastikan order hanya masuk produksi setelah payment terverifikasi `paid`.
-- [ ] Buat struk digital dari snapshot order dan dukungan print/download.
-- [ ] Implementasikan plan, trial, subscription, invoice SaaS, entitlement, dan limit outlet/meja/staf.
-- [ ] Tambahkan laporan penjualan, transaksi, superadmin, audit log, Horizon, observability, backup, dan recovery procedure.
+- [x] Tambahkan adapter vendor, retry, dan reconciliation gateway.
+- [x] Pastikan order hanya masuk produksi setelah payment terverifikasi `paid`.
+- [x] Buat struk digital dari snapshot order dan dukungan print/download.
+- [x] Implementasikan plan, trial, subscription, invoice SaaS, entitlement, owner billing Midtrans, dan limit meja.
+- [ ] Terapkan enforcement limit outlet dan staf saat flow CRUD resource tersebut tersedia.
+- [x] Tambahkan laporan penjualan tenant-scoped dengan filter tanggal/outlet, agregasi payment, produk terlaris, dan transaksi terbaru.
+- [x] Tambahkan audit log tenant-aware untuk subscription, invoice, payment, role, dan tax setup.
+- [x] Tambahkan dashboard superadmin platform read-only, gate, dan command grant/revoke.
+- [ ] Tambahkan Horizon, observability, backup, dan recovery procedure.
 
 ## Quality Gate Berikutnya
 
@@ -109,5 +113,8 @@ Beberapa halaman marketing dan fitur realtime/notifikasi masih menggunakan data 
 - [x] Feature test QR invalid/revoked/expired, rotasi token, artifact, status resource, download/cetak, dan isolasi katalog.
 - [x] Feature test checkout idempotency dan isolasi token order.
 - [x] Feature test webhook duplicate/out-of-order dan transisi status ilegal.
+- [x] Feature test agregasi laporan, timezone tenant, filter outlet, isolasi tenant, dan permission laporan.
+- [x] Feature test audit log untuk setup owner, transisi payment/subscription, redaction payload, dan tenant scope.
+- [x] Feature test akses platform dan agregasi tenant lintas konteks.
 - [ ] Browser test alur scan QR sampai struk pada viewport 360 px, tablet, dan desktop.
 - [ ] Audit aksesibilitas, Core Web Vitals, optimasi gambar, empty/error/loading state, dan koneksi lambat.
