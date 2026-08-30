@@ -7,6 +7,7 @@ use App\Models\PaymentEvent;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\BackupService;
+use App\Services\PaymentLifecycleService;
 use App\Services\PaymentReconciliationService;
 use App\Services\TelemetryService;
 use Illuminate\Foundation\Inspiring;
@@ -52,6 +53,16 @@ Artisan::command('payments:reconcile {--limit=100}', function (PaymentReconcilia
 
     return $failures === 0 ? 0 : 1;
 })->purpose('Reconcile pending Midtrans payments');
+
+Artisan::command('payments:expire {--limit=100}', function (PaymentLifecycleService $lifecycle): int {
+    $limit = filter_var($this->option('limit'), FILTER_VALIDATE_INT);
+    $limit = $limit === false ? 100 : max(1, min(500, $limit));
+    $expired = $lifecycle->expireDue($limit);
+
+    $this->info("Payment kedaluwarsa: {$expired}.");
+
+    return 0;
+})->purpose('Expire overdue pending payments');
 
 Artisan::command('ops:backup {--destination= : Override the configured backup destination}', function (
     BackupService $backups,
@@ -156,6 +167,10 @@ Artisan::command('ops:backup:verify-latest {--destination= : Override the config
 
 Schedule::command('payments:reconcile --limit=100')
     ->everyFiveMinutes()
+    ->withoutOverlapping();
+
+Schedule::command('payments:expire --limit=100')
+    ->everyMinute()
     ->withoutOverlapping();
 
 Artisan::command('subscriptions:expire', function (): int {

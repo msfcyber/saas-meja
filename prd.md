@@ -304,7 +304,7 @@ Order dan payment adalah entitas serta state machine yang terpisah.
 - Nominal payment harus sama dengan grand total order.
 - Payment pending memiliki masa kedaluwarsa.
 - Setelah payment kedaluwarsa, order tidak masuk proses.
-- Customer dapat mencoba pembayaran baru sesuai aturan outlet tanpa menggandakan order.
+- Customer dapat mencoba pembayaran baru dengan membuat payment pengganti pada order yang sama; transisi `payment_expired → awaiting_payment` hanya diizinkan untuk flow ini.
 
 ### 8.6 Dashboard order outlet
 
@@ -441,6 +441,11 @@ id
 tenant_id
 outlet_id
 table_id
+outlet_name_snapshot
+outlet_address_snapshot
+outlet_phone_snapshot
+table_name_snapshot
+table_code_snapshot
 order_number
 customer_name_optional
 status

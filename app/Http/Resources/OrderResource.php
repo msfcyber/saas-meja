@@ -2,7 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Models\DiningTable;
 use App\Models\Order;
+use App\Models\Outlet;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -14,7 +16,13 @@ class OrderResource extends JsonResource
     {
         /** @var Order $order */
         $order = $this->resource;
-        $payment = $order->relationLoaded('payments') ? $order->payments->first() : null;
+        $payment = $order->relationLoaded('payments')
+            ? $order->payments->sortByDesc('id')->first()
+            : null;
+        /** @var Outlet|null $outlet */
+        $outlet = $order->relationLoaded('outlet') ? $order->getRelation('outlet') : null;
+        /** @var DiningTable|null $table */
+        $table = $order->relationLoaded('table') ? $order->getRelation('table') : null;
 
         return [
             'id' => $order->getKey(),
@@ -24,18 +32,28 @@ class OrderResource extends JsonResource
             'payment_status' => $payment?->status?->value,
             'payment_method' => $payment?->method,
             'customer_name' => $order->customer_name,
-            'outlet' => $order->relationLoaded('outlet') && $order->outlet !== null
+            'outlet' => $order->outlet_name_snapshot !== null
                 ? [
-                    'name' => $order->outlet->name,
+                    'name' => $order->outlet_name_snapshot,
                     'currency' => $order->currency,
                 ]
-                : null,
-            'table' => $order->relationLoaded('table') && $order->table !== null
+                : ($outlet !== null
                 ? [
-                    'name' => $order->table->name,
-                    'code' => $order->table->code,
+                    'name' => $outlet->name,
+                    'currency' => $order->currency,
                 ]
-                : null,
+                : null),
+            'table' => $order->table_name_snapshot !== null
+                ? [
+                    'name' => $order->table_name_snapshot,
+                    'code' => $order->table_code_snapshot,
+                ]
+                : ($table !== null
+                ? [
+                    'name' => $table->name,
+                    'code' => $table->code,
+                ]
+                : null),
             'subtotal' => $order->subtotal,
             'discount_amount' => $order->discount_amount,
             'tax_name' => $order->tax_name_snapshot,

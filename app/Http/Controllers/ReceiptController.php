@@ -113,14 +113,14 @@ class ReceiptController extends Controller
 
         return [
             'outlet' => [
-                'name' => $order->outlet?->name,
-                'address' => $order->outlet?->address,
-                'phone' => $order->outlet?->phone,
+                'name' => $order->outlet_name_snapshot ?? $order->outlet?->name,
+                'address' => $order->outlet_address_snapshot ?? $order->outlet?->address,
+                'phone' => $order->outlet_phone_snapshot ?? $order->outlet?->phone,
             ],
             'order' => [
                 'number' => $order->order_number,
                 'customer_name' => $order->customer_name,
-                'table' => $order->table?->name,
+                'table' => $order->table_name_snapshot ?? $order->table?->name,
                 'created_at' => $order->created_at?->toIso8601String(),
             ],
             'items' => $items,

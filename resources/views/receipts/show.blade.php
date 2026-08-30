@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Struk {{ $order->order_number }} - {{ $order->outlet?->name }}</title>
+        <title>Struk {{ $order->order_number }} - {{ $order->outlet_name_snapshot ?? $order->outlet?->name }}</title>
         <style>
             :root { color-scheme: light; font-family: Arial, sans-serif; }
             body { margin: 0; background: #f3f0e9; color: #273024; }
@@ -45,12 +45,12 @@
         @endphp
         <main>
             <header>
-                <h1>{{ $order->outlet?->name }}</h1>
-                @if ($order->outlet?->address)
-                    <p class="muted">{{ $order->outlet->address }}</p>
+                <h1>{{ $order->outlet_name_snapshot ?? $order->outlet?->name }}</h1>
+                @if ($order->outlet_address_snapshot ?? $order->outlet?->address)
+                    <p class="muted">{{ $order->outlet_address_snapshot ?? $order->outlet?->address }}</p>
                 @endif
-                @if ($order->outlet?->phone)
-                    <p class="muted">{{ $order->outlet->phone }}</p>
+                @if ($order->outlet_phone_snapshot ?? $order->outlet?->phone)
+                    <p class="muted">{{ $order->outlet_phone_snapshot ?? $order->outlet?->phone }}</p>
                 @endif
             </header>
 
@@ -61,7 +61,7 @@
                 </div>
                 <div>
                     <span class="label">Meja</span>
-                    <strong>{{ $order->table?->name ?? '-' }}</strong>
+                    <strong>{{ $order->table_name_snapshot ?? $order->table?->name ?? '-' }}</strong>
                 </div>
                 <div>
                     <span class="label">Waktu order</span>

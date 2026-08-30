@@ -77,7 +77,7 @@ class OrderController extends Controller
             ->map(fn (Order $order) => [
                 'id' => $order->getKey(),
                 'number' => $order->order_number,
-                'table_name' => $order->table?->name,
+                'table_name' => $order->table_name_snapshot ?? $order->table?->name,
             ])
             ->values();
 

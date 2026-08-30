@@ -80,7 +80,16 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] State machine order terpusat, timeline mencatat actor/timestamp, dan status staff dibatasi oleh permission.
 - [x] Realtime order board dan customer tracking melalui Laravel Reverb dengan reconnect dan fallback polling.
 - [x] Notifikasi visual/audio order baru dengan preference staf per outlet, deduplikasi event/polling, dan aksesibilitas live announcement.
+- [x] Produk aktif yang habis tetap tampil pada menu QR dengan status non-interaktif; checkout tetap menolak produk yang menjadi tidak tersedia.
 - [x] Integrasi Midtrans Snap Sandbox: sesi checkout setelah order tersimpan, redirect pelanggan, dan webhook signature native.
+
+## Gap PRD Terverifikasi
+
+- [x] Terapkan expiry payment terjadwal, blokir webhook paid yang terlambat, dan payment pengganti pada order yang sama tanpa duplikasi order.
+- [x] Lengkapi CRUD kategori, varian, modifier, opsi modifier, dan penugasan modifier produk.
+- [x] Simpan snapshot identitas outlet/meja pada order dan gunakan pada tracking, board order, serta struk untuk menjaga riwayat setelah data operasional berubah.
+- [ ] Tambahkan pengaturan pajak outlet beserta audit; konfigurasi credential gateway membutuhkan keputusan rotasi dan ownership provider.
+- [ ] Terapkan penugasan outlet untuk staf, termasuk kebijakan default/backfill dan enforcement pada context/policy.
 
 ## Task Berikutnya - Backend Foundation
 

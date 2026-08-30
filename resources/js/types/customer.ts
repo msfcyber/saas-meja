@@ -14,7 +14,7 @@ export type CustomerMenuModifierOption = {
 export type CustomerMenuModifier = {
     id: number;
     name: string;
-    selection_type: "single" | "multiple";
+    selection_type: 'single' | 'multiple';
     minimum_selections: number;
     maximum_selections: number;
     is_required: boolean;
@@ -30,6 +30,7 @@ export type CustomerMenuProduct = {
     image: string | null;
     popular?: boolean;
     spicy?: boolean;
+    is_available?: boolean;
     variants?: CustomerMenuVariant[];
     modifiers?: CustomerMenuModifier[];
 };

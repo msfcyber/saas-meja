@@ -26,6 +26,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $fee_amount
  * @property int $grand_total
  * @property string $currency
+ * @property string|null $outlet_name_snapshot
+ * @property string|null $table_name_snapshot
  * @property string $access_token_encrypted
  * @property CarbonImmutable|null $paid_at
  * @property CarbonImmutable|null $completed_at
@@ -34,6 +36,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'tenant_id',
     'outlet_id',
     'table_id',
+    'outlet_name_snapshot',
+    'outlet_address_snapshot',
+    'outlet_phone_snapshot',
+    'table_name_snapshot',
+    'table_code_snapshot',
     'order_sequence',
     'order_number',
     'customer_name',

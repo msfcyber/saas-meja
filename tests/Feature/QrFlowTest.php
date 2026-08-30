@@ -228,13 +228,24 @@ test('staff can download and print the active QR within the outlet scope', funct
         ->assertSee('<svg', false);
 });
 
-test('public QR menu only exposes active products from its outlet', function () {
+test('public QR menu exposes unavailable products but keeps inactive and foreign products hidden', function () {
     $workspace = createQrWorkspace();
     $otherOutlet = Outlet::factory()->for($workspace['tenant'])->create();
     $table = createQrTable($workspace);
     $category = Category::factory()->for($workspace['outlet'])->create();
-    $visibleProduct = Product::factory()->for($category)->create(['name' => 'Produk Outlet Aktif']);
-    Product::factory()->for(Category::factory()->for($workspace['outlet']))->unavailable()->create(['name' => 'Produk Habis']);
+    $visibleProduct = Product::factory()->for($category)->create([
+        'name' => 'Produk Outlet Aktif',
+        'position' => 1,
+    ]);
+    $unavailableProduct = Product::factory()
+        ->for(Category::factory()->for($workspace['outlet']))
+        ->unavailable()
+        ->create(['name' => 'Produk Habis', 'position' => 2]);
+    Product::factory()->for($category)->create([
+        'name' => 'Produk Tidak Aktif',
+        'is_active' => false,
+        'position' => 3,
+    ]);
     Product::factory()->for(Category::factory()->for($otherOutlet))->create(['name' => 'Produk Outlet Lain']);
     $plainToken = str_repeat('b', 64);
     TableQrToken::factory()->for($table, 'table')->create(['token_hash' => hash('sha256', $plainToken)]);
@@ -242,8 +253,12 @@ test('public QR menu only exposes active products from its outlet', function () 
     $this->get(route('public.qr', ['qrToken' => $plainToken]))
         ->assertInertia(fn (Assert $page) => $page
             ->component('customer/menu')
-            ->has('products', 1)
+            ->has('products', 2)
             ->where('products.0.id', $visibleProduct->id)
-            ->where('products.0.name', 'Produk Outlet Aktif'),
+            ->where('products.0.name', 'Produk Outlet Aktif')
+            ->where('products.0.is_available', true)
+            ->where('products.1.id', $unavailableProduct->id)
+            ->where('products.1.name', 'Produk Habis')
+            ->where('products.1.is_available', false),
         );
 });

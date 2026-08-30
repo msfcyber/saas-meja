@@ -27,7 +27,8 @@ enum OrderStatus: string
             self::Preparing => [self::Ready],
             self::Ready => [self::Served],
             self::Served => [self::Completed],
-            self::Completed, self::PaymentExpired, self::Cancelled, self::Rejected, self::Refunded => [],
+            self::PaymentExpired => [self::AwaitingPayment],
+            self::Completed, self::Cancelled, self::Rejected, self::Refunded => [],
         }, true);
     }
 

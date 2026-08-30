@@ -18,6 +18,7 @@ final class PaymentWebhookService
     public function __construct(
         private readonly OrderStatusService $statuses,
         private readonly AuditLogService $audits,
+        private readonly PaymentLifecycleService $lifecycle,
     ) {}
 
     /**
@@ -86,6 +87,7 @@ final class PaymentWebhookService
                 ->where('outlet_id', $payment->outlet_id)
                 ->lockForUpdate()
                 ->firstOrFail();
+            $this->lifecycle->expireLocked($payment, $order);
             $previousPaymentStatus = $payment->status;
             $previousOrderStatus = $order->status;
             $target = $this->targetStatus((string) $data['event_type']);

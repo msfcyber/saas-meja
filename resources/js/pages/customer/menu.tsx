@@ -57,6 +57,9 @@ const defaultVariantId = (item: CustomerMenuItem): number | null =>
     item.variants?.[0]?.id ??
     null;
 
+const isAvailable = (item: CustomerMenuItem): boolean =>
+    item.is_available !== false;
+
 const configuredPrice = (
     item: CustomerMenuItem,
     variantId: number | null,
@@ -136,9 +139,17 @@ export default function Menu({
               (sum, item) => sum + item.price * (demoCart[item.id] ?? 0),
               0,
           );
-    const featuredItem = items.find((item) => item.popular) ?? items[0] ?? null;
+    const availableItemCount = items.filter(isAvailable).length;
+    const featuredItem =
+        items.find((item) => item.popular && isAvailable(item)) ??
+        items.find(isAvailable) ??
+        null;
 
     const openProduct = (item: CustomerMenuItem) => {
+        if (isPublicMenu && !isAvailable(item)) {
+            return;
+        }
+
         setSelected(item);
         setSelectedVariantId(defaultVariantId(item));
         setSelectedOptionIds([]);
@@ -199,7 +210,7 @@ export default function Menu({
     };
 
     const addPublicItem = () => {
-        if (!selected || !qrToken) {
+        if (!selected || !qrToken || !isAvailable(selected)) {
             return;
         }
 
@@ -339,7 +350,9 @@ export default function Menu({
                                             className="size-2 rounded-full bg-[#a9b888]"
                                             aria-hidden="true"
                                         />
-                                        {items.length} hidangan tersedia
+                                        {isPublicMenu
+                                            ? `${availableItemCount} hidangan siap dipesan`
+                                            : `${items.length} hidangan tersedia`}
                                     </span>
                                     {isPublicMenu ? (
                                         <span className="flex items-center gap-2">
@@ -503,81 +516,102 @@ export default function Menu({
                         </div>
 
                         <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                            {filteredItems.map((item) => (
-                                <article
-                                    key={item.id}
-                                    className="group bg-card overflow-hidden rounded-[1.5rem] border shadow-[0_16px_50px_-38px_rgba(54,45,31,0.55)] transition-all hover:-translate-y-1 hover:shadow-[0_24px_60px_-38px_rgba(54,45,31,0.75)]"
-                                >
-                                    <button
-                                        type="button"
-                                        onClick={() => openProduct(item)}
-                                        aria-label={`Lihat detail ${item.name}`}
-                                        className="block w-full cursor-pointer text-left"
+                            {filteredItems.map((item) => {
+                                const unavailable =
+                                    isPublicMenu && !isAvailable(item);
+
+                                return (
+                                    <article
+                                        key={item.id}
+                                        className={`group bg-card overflow-hidden rounded-[1.5rem] border shadow-[0_16px_50px_-38px_rgba(54,45,31,0.55)] transition-all ${unavailable ? 'opacity-75' : 'hover:-translate-y-1 hover:shadow-[0_24px_60px_-38px_rgba(54,45,31,0.75)]'}`}
                                     >
-                                        <div className="bg-muted relative aspect-[4/3] overflow-hidden">
-                                            {item.image ? (
-                                                <img
-                                                    src={item.image}
-                                                    alt=""
-                                                    className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                                    loading="lazy"
-                                                />
-                                            ) : (
-                                                <div className="bg-secondary text-primary flex size-full items-center justify-center">
-                                                    <ShoppingBag
-                                                        className="size-10"
-                                                        aria-hidden="true"
+                                        <button
+                                            type="button"
+                                            onClick={() => openProduct(item)}
+                                            disabled={unavailable}
+                                            aria-label={
+                                                unavailable
+                                                    ? `${item.name} sedang tidak tersedia`
+                                                    : `Lihat detail ${item.name}`
+                                            }
+                                            className={`block w-full text-left disabled:cursor-not-allowed ${unavailable ? '' : 'cursor-pointer'}`}
+                                        >
+                                            <div className="bg-muted relative aspect-[4/3] overflow-hidden">
+                                                {item.image ? (
+                                                    <img
+                                                        src={item.image}
+                                                        alt=""
+                                                        className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                                        loading="lazy"
                                                     />
-                                                </div>
-                                            )}
-                                            <div className="absolute top-3 left-3 flex gap-2">
-                                                {item.popular && (
-                                                    <span className="rounded-full bg-[#fff8e8] px-3 py-1.5 text-[10px] font-bold tracking-wider text-[#7d5c18] uppercase shadow-sm">
-                                                        Favorit
-                                                    </span>
-                                                )}
-                                                {item.spicy && (
-                                                    <span className="flex size-7 items-center justify-center rounded-full bg-[#b64a2e] text-white shadow-sm">
-                                                        <Flame
-                                                            className="size-3.5"
+                                                ) : (
+                                                    <div className="bg-secondary text-primary flex size-full items-center justify-center">
+                                                        <ShoppingBag
+                                                            className="size-10"
                                                             aria-hidden="true"
                                                         />
-                                                        <span className="sr-only">
-                                                            Pedas
+                                                    </div>
+                                                )}
+                                                <div className="absolute top-3 left-3 flex flex-wrap gap-2">
+                                                    {item.popular && (
+                                                        <span className="rounded-full bg-[#fff8e8] px-3 py-1.5 text-[10px] font-bold tracking-wider text-[#7d5c18] uppercase shadow-sm">
+                                                            Favorit
                                                         </span>
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="p-5">
-                                            <p className="text-primary text-[11px] font-bold tracking-[0.12em] uppercase">
-                                                {item.category}
-                                            </p>
-                                            <h3 className="mt-2 text-lg font-bold tracking-tight">
-                                                {item.name}
-                                            </h3>
-                                            <p className="text-muted-foreground mt-2 line-clamp-2 min-h-10 text-sm leading-5">
-                                                {item.description}
-                                            </p>
-                                            <div className="mt-5 flex items-center justify-between gap-4">
-                                                <span className="font-bold">
-                                                    {formatCurrency(item.price)}
-                                                </span>
-                                                <span className="bg-foreground text-background group-hover:bg-primary flex min-h-11 items-center justify-center rounded-full px-4 text-xs font-bold transition-colors">
-                                                    {isPublicMenu ? (
-                                                        'Detail'
-                                                    ) : (
-                                                        <Plus
-                                                            className="size-4"
-                                                            aria-hidden="true"
-                                                        />
                                                     )}
-                                                </span>
+                                                    {item.spicy && (
+                                                        <span className="flex size-7 items-center justify-center rounded-full bg-[#b64a2e] text-white shadow-sm">
+                                                            <Flame
+                                                                className="size-3.5"
+                                                                aria-hidden="true"
+                                                            />
+                                                            <span className="sr-only">
+                                                                Pedas
+                                                            </span>
+                                                        </span>
+                                                    )}
+                                                    {unavailable && (
+                                                        <span className="bg-foreground text-background rounded-full px-3 py-1.5 text-[10px] font-bold tracking-wider uppercase shadow-sm">
+                                                            Habis
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    </button>
-                                </article>
-                            ))}
+                                            <div className="p-5">
+                                                <p className="text-primary text-[11px] font-bold tracking-[0.12em] uppercase">
+                                                    {item.category}
+                                                </p>
+                                                <h3 className="mt-2 text-lg font-bold tracking-tight">
+                                                    {item.name}
+                                                </h3>
+                                                <p className="text-muted-foreground mt-2 line-clamp-2 min-h-10 text-sm leading-5">
+                                                    {item.description}
+                                                </p>
+                                                <div className="mt-5 flex items-center justify-between gap-4">
+                                                    <span className="font-bold">
+                                                        {formatCurrency(
+                                                            item.price,
+                                                        )}
+                                                    </span>
+                                                    <span
+                                                        className={`flex min-h-11 items-center justify-center rounded-full px-4 text-xs font-bold transition-colors ${unavailable ? 'bg-muted text-muted-foreground' : 'bg-foreground text-background group-hover:bg-primary'}`}
+                                                    >
+                                                        {unavailable ? (
+                                                            'Habis'
+                                                        ) : isPublicMenu ? (
+                                                            'Detail'
+                                                        ) : (
+                                                            <Plus
+                                                                className="size-4"
+                                                                aria-hidden="true"
+                                                            />
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    </article>
+                                );
+                            })}
                         </div>
                         {filteredItems.length === 0 && (
                             <div className="mt-6 rounded-3xl border border-dashed p-8 text-center sm:p-12">
@@ -676,7 +710,15 @@ export default function Menu({
                                         {selected.description}
                                     </DialogDescription>
                                 </DialogHeader>
-                                {isPublicMenu ? (
+                                {isPublicMenu && !isAvailable(selected) ? (
+                                    <div
+                                        className="bg-muted text-muted-foreground mt-6 rounded-2xl px-4 py-3 text-sm font-semibold"
+                                        role="status"
+                                    >
+                                        Menu ini sedang habis dan belum dapat
+                                        ditambahkan ke pesanan.
+                                    </div>
+                                ) : isPublicMenu ? (
                                     <>
                                         {(selected.variants?.length ?? 0) >
                                             0 && (

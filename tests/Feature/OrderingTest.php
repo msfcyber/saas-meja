@@ -128,6 +128,11 @@ test('guest checkout validates the QR context and snapshots the final server pri
     expect($order->tenant_id)->toBe($workspace['tenant']->id)
         ->and($order->outlet_id)->toBe($workspace['outlet']->id)
         ->and($order->table_id)->toBe($workspace['outlet']->tables()->firstOrFail()->id)
+        ->and($order->outlet_name_snapshot)->toBe($workspace['outlet']->name)
+        ->and($order->outlet_address_snapshot)->toBe($workspace['outlet']->address)
+        ->and($order->outlet_phone_snapshot)->toBe($workspace['outlet']->phone)
+        ->and($order->table_name_snapshot)->toBe($workspace['outlet']->tables()->firstOrFail()->name)
+        ->and($order->table_code_snapshot)->toBe($workspace['outlet']->tables()->firstOrFail()->code)
         ->and($item->product_name_snapshot)->toBe($workspace['product']->name)
         ->and($item->variant_name_snapshot)->toBe('Large')
         ->and($item->unit_price)->toBe(36000)
@@ -214,6 +219,60 @@ test('a guest checkout keeps its pending payment when Midtrans is not configured
         ->toBe(PaymentStatus::Pending);
 });
 
+test('payment expiry command marks overdue payments and orders as expired', function () {
+    $workspace = createOrderingWorkspace();
+    $response = $this->postJson(route('public.orders.store'), orderingPayload($workspace))->assertCreated();
+    $order = createOrder($response);
+    $payment = Payment::withoutGlobalScopes()->where('order_id', $order->id)->firstOrFail();
+    $payment->update(['expires_at' => now()->subSecond()]);
+
+    $this->artisan('payments:expire')->assertExitCode(0);
+
+    expect($payment->fresh()->status)->toBe(PaymentStatus::Expired)
+        ->and($order->fresh()->status)->toBe(OrderStatus::PaymentExpired);
+    $this->assertDatabaseHas('audit_logs', [
+        'event' => 'payment.status_changed',
+        'auditable_id' => $payment->id,
+    ]);
+});
+
+test('an expired payment creates a replacement for the same order', function () {
+    config(['payments.midtrans.server_key' => 'SB-Mid-server-key']);
+    Http::fake([
+        'https://app.sandbox.midtrans.com/snap/v1/transactions' => Http::response([
+            'token' => 'replacement-snap-token',
+            'redirect_url' => 'https://app.sandbox.midtrans.com/snap/v2/vtweb/replacement-snap-token',
+        ]),
+    ]);
+    $workspace = createOrderingWorkspace();
+    $response = $this->postJson(route('public.orders.store'), orderingPayload($workspace))->assertCreated();
+    $order = createOrder($response);
+    $expiredPayment = Payment::withoutGlobalScopes()->where('order_id', $order->id)->firstOrFail();
+    $expiredPayment->update(['expires_at' => now()->subSecond()]);
+
+    $this->postJson(route('public.orders.payment.start', [
+        'accessToken' => $response->json('access_token'),
+    ]))->assertOk()
+        ->assertJsonPath('redirect_url', 'https://app.sandbox.midtrans.com/snap/v2/vtweb/replacement-snap-token');
+
+    $replacement = Payment::withoutGlobalScopes()
+        ->where('order_id', $order->id)
+        ->latest('id')
+        ->firstOrFail();
+
+    expect(Order::withoutGlobalScopes()->count())->toBe(1)
+        ->and(Payment::withoutGlobalScopes()->where('order_id', $order->id)->count())->toBe(2)
+        ->and($expiredPayment->fresh()->status)->toBe(PaymentStatus::Expired)
+        ->and($replacement->status)->toBe(PaymentStatus::Pending)
+        ->and($replacement->provider_reference)->not->toBe($expiredPayment->provider_reference)
+        ->and($replacement->expires_at?->isFuture())->toBeTrue()
+        ->and($order->fresh()->status)->toBe(OrderStatus::AwaitingPayment);
+    $this->assertDatabaseHas('audit_logs', [
+        'event' => 'payment.retried',
+        'auditable_id' => $replacement->id,
+    ]);
+});
+
 test('checkout rejects a product from another outlet', function () {
     $workspace = createOrderingWorkspace();
     $otherOutlet = Outlet::factory()->for($workspace['tenant'])->create(['accepts_orders' => true]);
@@ -222,6 +281,17 @@ test('checkout rejects a product from another outlet', function () {
     $payload['items'][0]['product_id'] = $foreignProduct->id;
 
     $this->postJson(route('public.orders.store'), $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('items.0.product_id');
+
+    expect(Order::withoutGlobalScopes()->count())->toBe(0);
+});
+
+test('checkout rejects a product that becomes unavailable after the menu is viewed', function () {
+    $workspace = createOrderingWorkspace();
+    $workspace['product']->update(['is_available' => false]);
+
+    $this->postJson(route('public.orders.store'), orderingPayload($workspace))
         ->assertUnprocessable()
         ->assertJsonValidationErrors('items.0.product_id');
 
@@ -352,6 +422,37 @@ test('a valid payment webhook marks payment and order as paid exactly once', fun
         ->and($order->status)->toBe(OrderStatus::Paid)
         ->and(PaymentEvent::withoutGlobalScopes()->count())->toBe(1)
         ->and($order->statusHistories()->withoutGlobalScopes()->pluck('to_status')->map(fn (OrderStatus $status) => $status->value)->all())->toContain(OrderStatus::Paid->value);
+});
+
+test('a late paid webhook cannot revive an expired payment or order', function () {
+    config(['payments.webhook_secret' => 'test-webhook-secret']);
+    $workspace = createOrderingWorkspace();
+    $orderResponse = $this->postJson(route('public.orders.store'), orderingPayload($workspace))->assertCreated();
+    $order = createOrder($orderResponse);
+    $payment = Payment::withoutGlobalScopes()->where('order_id', $order->id)->firstOrFail();
+    $payment->update([
+        'provider' => 'generic',
+        'provider_reference' => 'pay-expired-late',
+        'expires_at' => now()->subSecond(),
+    ]);
+    $this->artisan('payments:expire')->assertExitCode(0);
+    $payload = [
+        'event_id' => 'evt-paid-after-expiry',
+        'event_type' => 'payment.paid',
+        'provider_reference' => 'pay-expired-late',
+        'amount' => $payment->amount,
+        'currency' => 'IDR',
+        'occurred_at' => now()->toIso8601String(),
+    ];
+
+    $this->withHeaders(paymentWebhookHeaders($payload, now()->timestamp))
+        ->postJson(route('payments.webhook', ['provider' => 'generic']), $payload)
+        ->assertOk()
+        ->assertJsonPath('payment_status', PaymentStatus::Expired->value)
+        ->assertJsonPath('order_status', OrderStatus::PaymentExpired->value);
+
+    expect($payment->fresh()->status)->toBe(PaymentStatus::Expired)
+        ->and($order->fresh()->status)->toBe(OrderStatus::PaymentExpired);
 });
 
 test('a valid Midtrans notification marks payment and order as paid exactly once', function () {

@@ -1,15 +1,20 @@
 <?php
 
+use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\Context\SwitchOutletController;
 use App\Http\Controllers\Context\SwitchTenantController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DiningTableController;
+use App\Http\Controllers\ModifierController;
+use App\Http\Controllers\ModifierOptionController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OutletController;
 use App\Http\Controllers\Platform\PlatformDashboardController;
 use App\Http\Controllers\ProductAvailabilityController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductModifierController;
+use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\PublicMenuController;
 use App\Http\Controllers\PublicOrderController;
 use App\Http\Controllers\ReceiptController;
@@ -73,6 +78,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('products', [ProductController::class, 'index'])->middleware('permission:menu.manage')->name('products');
         Route::post('products', [ProductController::class, 'store'])->middleware('permission:menu.manage')->name('products.store');
         Route::patch('products/{product}/availability', ProductAvailabilityController::class)->middleware('permission:menu.manage')->name('products.availability.update');
+        Route::post('products/{product}/variants', [ProductVariantController::class, 'store'])->middleware('permission:menu.manage')->name('products.variants.store');
+        Route::put('products/{product}/modifiers', [ProductModifierController::class, 'update'])->middleware('permission:menu.manage')->name('products.modifiers.update');
+        Route::patch('product-variants/{variant}', [ProductVariantController::class, 'update'])->middleware('permission:menu.manage')->name('product-variants.update');
+        Route::delete('product-variants/{variant}', [ProductVariantController::class, 'destroy'])->middleware('permission:menu.manage')->name('product-variants.destroy');
+        Route::post('categories', [CategoryController::class, 'store'])->middleware('permission:menu.manage')->name('categories.store');
+        Route::patch('categories/{category}', [CategoryController::class, 'update'])->middleware('permission:menu.manage')->name('categories.update');
+        Route::delete('categories/{category}', [CategoryController::class, 'destroy'])->middleware('permission:menu.manage')->name('categories.destroy');
+        Route::post('modifiers', [ModifierController::class, 'store'])->middleware('permission:menu.manage')->name('modifiers.store');
+        Route::patch('modifiers/{modifier}', [ModifierController::class, 'update'])->middleware('permission:menu.manage')->name('modifiers.update');
+        Route::delete('modifiers/{modifier}', [ModifierController::class, 'destroy'])->middleware('permission:menu.manage')->name('modifiers.destroy');
+        Route::post('modifiers/{modifier}/options', [ModifierOptionController::class, 'store'])->middleware('permission:menu.manage')->name('modifiers.options.store');
+        Route::patch('modifier-options/{option}', [ModifierOptionController::class, 'update'])->middleware('permission:menu.manage')->name('modifier-options.update');
+        Route::delete('modifier-options/{option}', [ModifierOptionController::class, 'destroy'])->middleware('permission:menu.manage')->name('modifier-options.destroy');
         Route::get('tables', [DiningTableController::class, 'index'])->middleware('permission:table.manage')->name('tables');
         Route::post('tables', [DiningTableController::class, 'store'])->middleware('permission:table.manage')->name('tables.store');
         Route::post('tables/{table}/regenerate-qr', [TableQrCodeController::class, 'regenerate'])->middleware('permission:table.manage')->name('tables.qr.regenerate');

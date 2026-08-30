@@ -11,6 +11,7 @@ use App\Models\Payment;
 use App\Models\TaxSetting;
 use App\Services\PaymentCheckoutService;
 use App\Services\PaymentGatewayException;
+use App\Services\PaymentLifecycleService;
 use App\Services\PublicOrderService;
 use App\Services\PublicTableAccessService;
 use Illuminate\Http\JsonResponse;
@@ -18,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class PublicOrderController extends Controller
 {
@@ -89,8 +91,11 @@ class PublicOrderController extends Controller
         ], $result['created'] ? 201 : 200);
     }
 
-    public function show(Request $request, string $accessToken): Response
-    {
+    public function show(
+        Request $request,
+        string $accessToken,
+        PaymentLifecycleService $lifecycle,
+    ): Response {
         $order = $this->findOrder($accessToken);
 
         if ($order === null) {
@@ -103,6 +108,8 @@ class PublicOrderController extends Controller
             ]);
         }
 
+        $this->expireLatestPayment($order, $lifecycle);
+        $order->refresh();
         $this->loadPublicOrder($order);
 
         return Inertia::render('customer/tracking', [
@@ -121,14 +128,19 @@ class PublicOrderController extends Controller
         ]);
     }
 
-    public function showJson(Request $request, string $accessToken): JsonResponse
-    {
+    public function showJson(
+        Request $request,
+        string $accessToken,
+        PaymentLifecycleService $lifecycle,
+    ): JsonResponse {
         $order = $this->findOrder($accessToken);
 
         if ($order === null) {
             return response()->json(['message' => 'Order tidak ditemukan.'], 404);
         }
 
+        $this->expireLatestPayment($order, $lifecycle);
+        $order->refresh();
         $this->loadPublicOrder($order);
 
         return response()->json([
@@ -136,18 +148,17 @@ class PublicOrderController extends Controller
         ]);
     }
 
-    public function paymentStatus(string $accessToken): JsonResponse
-    {
+    public function paymentStatus(
+        string $accessToken,
+        PaymentLifecycleService $lifecycle,
+    ): JsonResponse {
         $order = $this->findOrder($accessToken);
 
         if ($order === null) {
             return response()->json(['message' => 'Order tidak ditemukan.'], 404);
         }
 
-        $payment = Payment::withoutGlobalScopes()
-            ->where('order_id', $order->getKey())
-            ->latest('id')
-            ->firstOrFail();
+        $payment = $this->expireLatestPayment($order, $lifecycle);
 
         return response()->json($this->paymentPayload($payment, $accessToken));
     }
@@ -156,6 +167,7 @@ class PublicOrderController extends Controller
         Request $request,
         string $accessToken,
         PaymentCheckoutService $payments,
+        PaymentLifecycleService $lifecycle,
     ): JsonResponse {
         $order = $this->findOrder($accessToken);
 
@@ -163,13 +175,10 @@ class PublicOrderController extends Controller
             return response()->json(['message' => 'Order tidak ditemukan.'], 404);
         }
 
-        $payment = Payment::withoutGlobalScopes()
-            ->where('order_id', $order->getKey())
-            ->latest('id')
-            ->firstOrFail();
-
-        if ($payment->status !== PaymentStatus::Pending) {
-            return response()->json(['message' => 'Payment ini tidak lagi menunggu pembayaran.'], 409);
+        try {
+            $payment = $lifecycle->paymentForCheckout($order);
+        } catch (ConflictHttpException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 409);
         }
 
         try {
@@ -206,6 +215,21 @@ class PublicOrderController extends Controller
             'outlet' => fn ($query) => $query->withoutGlobalScopes(),
         ]);
         $order->items->load(['modifiers' => fn ($query) => $query->withoutGlobalScopes()]);
+    }
+
+    private function expireLatestPayment(
+        Order $order,
+        PaymentLifecycleService $lifecycle,
+    ): Payment {
+        $payment = Payment::withoutGlobalScopes()
+            ->where('order_id', $order->getKey())
+            ->latest('id')
+            ->firstOrFail();
+        $lifecycle->expireIfDue($payment);
+
+        return Payment::withoutGlobalScopes()
+            ->whereKey($payment->getKey())
+            ->firstOrFail();
     }
 
     /** @return array{status: string, provider: string|null, redirect_url: string|null, start_url: string, expires_at: string|null} */

@@ -83,7 +83,6 @@ class PublicMenuController extends Controller
             ->where('tenant_id', $token->tenant_id)
             ->where('outlet_id', $token->outlet_id)
             ->where('is_active', true)
-            ->where('is_available', true)
             ->where(fn ($query) => $query->whereNull('category_id')->orWhereIn('category_id', $categoryIds))
             ->with([
                 'variants' => fn ($query) => $query
@@ -136,6 +135,7 @@ class PublicMenuController extends Controller
                 'price' => $product->base_price,
                 'image' => $product->image_path === null ? null : Storage::disk('public')->url($product->image_path),
                 'popular' => $product->is_featured,
+                'is_available' => $product->is_available,
                 'variants' => $product->variants->map(fn (ProductVariant $variant) => [
                     'id' => $variant->id,
                     'name' => $variant->name,
