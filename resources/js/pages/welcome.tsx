@@ -369,7 +369,7 @@ export default function Welcome() {
                     <section
                         id="cara-kerja"
                         aria-labelledby="workflow-title"
-                        className="scroll-mt-24 bg-foreground text-background dark:bg-[#151b15] dark:text-[#f9f4e8]"
+                        className="scroll-mt-32 bg-foreground text-background dark:bg-[#151b15] dark:text-[#f9f4e8]"
                     >
                         <div className="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
                             <div className="grid gap-8 lg:grid-cols-2 lg:items-end">
@@ -416,7 +416,7 @@ export default function Welcome() {
                     <section
                         id="fitur"
                         aria-labelledby="feature-title"
-                        className="scroll-mt-24 py-24 sm:py-32"
+                        className="scroll-mt-32 py-24 sm:py-32"
                     >
                         <div className="mx-auto max-w-7xl px-5 sm:px-8">
                             <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
@@ -526,7 +526,7 @@ export default function Welcome() {
                     <section
                         id="harga"
                         aria-labelledby="pricing-title"
-                        className="scroll-mt-24 bg-muted/40 py-24 sm:py-32"
+                        className="scroll-mt-32 bg-muted/40 py-24 sm:py-32"
                     >
                         <div className="mx-auto grid max-w-7xl gap-12 px-5 sm:px-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-20">
                             <div>
