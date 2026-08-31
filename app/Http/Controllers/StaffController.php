@@ -11,8 +11,8 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\SubscriptionEntitlementService;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -291,7 +291,11 @@ class StaffController extends Controller
     }
 
     /** @param list<int> $outletIds */
-    private function activeOutlets(Tenant $tenant, array $outletIds): \Illuminate\Database\Eloquent\Collection
+    /**
+     * @param  list<int>  $outletIds
+     * @return EloquentCollection<int, Outlet>
+     */
+    private function activeOutlets(Tenant $tenant, array $outletIds): EloquentCollection
     {
         return Outlet::withoutGlobalScopes()
             ->where('tenant_id', $tenant->getKey())
@@ -301,7 +305,8 @@ class StaffController extends Controller
             ->get();
     }
 
-    private function tenantOutlets(Tenant $tenant, bool $activeOnly): \Illuminate\Database\Eloquent\Collection
+    /** @return EloquentCollection<int, Outlet> */
+    private function tenantOutlets(Tenant $tenant, bool $activeOnly): EloquentCollection
     {
         return Outlet::withoutGlobalScopes()
             ->where('tenant_id', $tenant->getKey())
@@ -310,23 +315,35 @@ class StaffController extends Controller
             ->get();
     }
 
-    /** @param Collection<int, Outlet> $outlets */
-    private function outletProps(Collection $outlets): array
+    /**
+     * @param  EloquentCollection<int, Outlet>  $outlets
+     * @return list<array{id: int, name: string, code: string, is_active: bool}>
+     */
+    private function outletProps(EloquentCollection $outlets): array
     {
-        return $outlets->map(fn (Outlet $outlet): array => [
+        return array_values($outlets->map(fn (Outlet $outlet): array => [
             'id' => $outlet->id,
             'name' => $outlet->name,
             'code' => $outlet->code,
             'is_active' => $outlet->is_active,
-        ])->values()->all();
+        ])->values()->all());
     }
 
-    /** @param Collection<int, Outlet> $outlets */
-    private function outletAuditValues(Collection $outlets): array
+    /**
+     * @param  EloquentCollection<int, Outlet>  $outlets
+     * @return array{outlet_ids: list<int>, outlet_names: list<string>}
+     */
+    private function outletAuditValues(EloquentCollection $outlets): array
     {
         return [
-            'outlet_ids' => $outlets->modelKeys(),
-            'outlet_names' => $outlets->pluck('name')->values()->all(),
+            'outlet_ids' => array_values(array_map(
+                static fn (int|string $outletId): int => (int) $outletId,
+                $outlets->modelKeys(),
+            )),
+            'outlet_names' => array_values(array_map(
+                static fn (mixed $name): string => (string) $name,
+                $outlets->pluck('name')->all(),
+            )),
         ];
     }
 }

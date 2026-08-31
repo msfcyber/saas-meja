@@ -33,6 +33,7 @@ final class PublicOrderService
     public function __construct(
         private readonly OrderStatusService $statuses,
         private readonly TelemetryService $telemetry,
+        private readonly AnalyticsEventService $analytics,
     ) {}
 
     /**
@@ -207,6 +208,15 @@ final class PublicOrderService
             'created' => $result['created'],
             'outcome' => $result['created'] ? 'created' : 'idempotent',
         ]);
+
+        if ($result['created']) {
+            $this->analytics->recordPublic(
+                'order_created',
+                $access,
+                orderId: (int) $result['order']->getKey(),
+                properties: ['status' => OrderStatus::AwaitingPayment->value],
+            );
+        }
 
         return $result;
     }

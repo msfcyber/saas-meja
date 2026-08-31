@@ -1,25 +1,47 @@
-import { Form, Head } from "@inertiajs/react";
-import InputError from "@/components/input-error";
-import PasswordInput from "@/components/password-input";
-import TextLink from "@/components/text-link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Spinner } from "@/components/ui/spinner";
-import { login } from "@/routes";
-import { store } from "@/routes/register";
+import { Form, Head } from '@inertiajs/react';
+import InputError from '@/components/input-error';
+import PasswordInput from '@/components/password-input';
+import TextLink from '@/components/text-link';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
+import { login } from '@/routes';
+import { store } from '@/routes/register';
 
 type Props = {
     passwordRules: string;
+    canUseGoogle: boolean;
 };
 
-export default function Register({ passwordRules }: Props) {
+export default function Register({ passwordRules, canUseGoogle }: Props) {
     return (
         <>
             <Head title="Daftar" />
+            {canUseGoogle && (
+                <>
+                    <a
+                        href="/auth/google/redirect"
+                        className="border-input bg-background hover:bg-accent flex min-h-11 items-center justify-center gap-3 rounded-md border px-4 text-sm font-semibold transition-colors"
+                    >
+                        <span
+                            className="flex size-6 items-center justify-center rounded-full border text-xs font-bold"
+                            aria-hidden="true"
+                        >
+                            G
+                        </span>
+                        Daftar dengan Google
+                    </a>
+                    <div className="text-muted-foreground relative flex items-center gap-3 text-xs">
+                        <span className="bg-border h-px flex-1" />
+                        <span>atau gunakan email</span>
+                        <span className="bg-border h-px flex-1" />
+                    </div>
+                </>
+            )}
             <Form
                 {...store.form()}
-                resetOnSuccess={["password", "password_confirmation"]}
+                resetOnSuccess={['password', 'password_confirmation']}
                 disableWhileProcessing
                 className="flex flex-col gap-6"
             >
@@ -38,7 +60,9 @@ export default function Register({ passwordRules }: Props) {
                                     placeholder="Nama kamu"
                                     aria-invalid={Boolean(errors.name)}
                                     aria-describedby={
-                                        errors.name ? "register-name-error" : undefined
+                                        errors.name
+                                            ? 'register-name-error'
+                                            : undefined
                                     }
                                 />
                                 <InputError
@@ -59,10 +83,15 @@ export default function Register({ passwordRules }: Props) {
                                     placeholder="email@example.com"
                                     aria-invalid={Boolean(errors.email)}
                                     aria-describedby={
-                                        errors.email ? "register-email-error" : undefined
+                                        errors.email
+                                            ? 'register-email-error'
+                                            : undefined
                                     }
                                 />
-                                <InputError id="register-email-error" message={errors.email} />
+                                <InputError
+                                    id="register-email-error"
+                                    message={errors.email}
+                                />
                             </div>
 
                             <div className="grid gap-2">
@@ -76,7 +105,9 @@ export default function Register({ passwordRules }: Props) {
                                     passwordrules={passwordRules}
                                     aria-invalid={Boolean(errors.password)}
                                     aria-describedby={
-                                        errors.password ? "register-password-error" : undefined
+                                        errors.password
+                                            ? 'register-password-error'
+                                            : undefined
                                     }
                                 />
                                 <InputError
@@ -86,7 +117,9 @@ export default function Register({ passwordRules }: Props) {
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="password_confirmation">Ulangi kata sandi</Label>
+                                <Label htmlFor="password_confirmation">
+                                    Ulangi kata sandi
+                                </Label>
                                 <PasswordInput
                                     id="password_confirmation"
                                     required
@@ -94,10 +127,12 @@ export default function Register({ passwordRules }: Props) {
                                     name="password_confirmation"
                                     placeholder="Ulangi kata sandi"
                                     passwordrules={passwordRules}
-                                    aria-invalid={Boolean(errors.password_confirmation)}
+                                    aria-invalid={Boolean(
+                                        errors.password_confirmation,
+                                    )}
                                     aria-describedby={
                                         errors.password_confirmation
-                                            ? "register-password-confirmation-error"
+                                            ? 'register-password-confirmation-error'
                                             : undefined
                                     }
                                 />
@@ -118,7 +153,8 @@ export default function Register({ passwordRules }: Props) {
                         </div>
 
                         <div className="text-muted-foreground text-center text-sm">
-                            Sudah punya akun? <TextLink href={login()}>Masuk</TextLink>
+                            Sudah punya akun?{' '}
+                            <TextLink href={login()}>Masuk</TextLink>
                         </div>
                     </>
                 )}
@@ -128,6 +164,6 @@ export default function Register({ passwordRules }: Props) {
 }
 
 Register.layout = {
-    title: "Mulai melayani lebih cepat",
-    description: "Buat akun owner dan coba Meja gratis selama 14 hari",
+    title: 'Mulai melayani lebih cepat',
+    description: 'Buat akun owner dan coba Meja gratis selama 14 hari',
 };

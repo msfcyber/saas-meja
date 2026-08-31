@@ -3,6 +3,7 @@
 use App\Services\BackupService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PDO;
 use ZipArchive;
@@ -22,7 +23,11 @@ test('backup service creates a database snapshot, asset archive, and checksum ma
             'foreign_key_constraints' => true,
         ],
         'operations.backup.retention_days' => 30,
+        'operations.backup.remote_enabled' => true,
+        'operations.backup.remote_disk' => $connectionName,
+        'operations.backup.remote_prefix' => 'off-host',
     ]);
+    Storage::fake($connectionName);
     DB::purge($connectionName);
     File::ensureDirectoryExists(dirname($databasePath));
     File::put($databasePath, '');
@@ -42,10 +47,14 @@ test('backup service creates a database snapshot, asset archive, and checksum ma
             ->and(File::exists($result['assets']))->toBeTrue()
             ->and(File::exists($result['checksums']))->toBeTrue()
             ->and($result['pruned'])->toBe(0)
+            ->and($result['remote_path'])->toBe('off-host/'.$result['backup_id'])
             ->and($verification['database_integrity'])->toBe('ok')
             ->and($verification['asset_entries'])->toBeGreaterThan(0)
             ->and($verification['restore_drill'])->toBeTrue()
             ->and($latest)->toBe($result['directory']);
+
+        expect(Storage::disk($connectionName)->files($result['remote_path']))
+            ->toHaveCount(3);
 
         $snapshot = new PDO('sqlite:'.$result['database']);
         expect($snapshot->query('SELECT value FROM backup_probe')->fetchColumn())->toBe('preserved');

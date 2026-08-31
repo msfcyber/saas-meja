@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\SaasInvoiceStatus;
 use App\Enums\SubscriptionStatus;
+use App\Enums\TenantStatus;
 use App\Models\AuditLog;
 use App\Models\Outlet;
 use App\Models\Plan;
@@ -81,4 +83,71 @@ test('platform access can be granted and revoked from the console', function () 
     $this->artisan('platform:revoke', ['email' => $user->email])
         ->assertExitCode(0);
     expect($user->fresh()->is_platform_admin)->toBeFalse();
+});
+
+test('platform admin can manage plans tenant status subscriptions and pending invoices', function () {
+    $admin = User::factory()->platformAdmin()->create();
+    $tenant = Tenant::factory()->create();
+    $oldPlan = Plan::factory()->create(['code' => 'starter']);
+    $newPlan = Plan::factory()->create(['code' => 'growth']);
+    $subscription = Subscription::factory()->for($tenant)->for($oldPlan)->create();
+    $invoice = SaasInvoice::factory()->for($subscription, 'subscription')->create();
+
+    $this->actingAs($admin)
+        ->post(route('platform.plans.store'), [
+            'code' => 'pro',
+            'name' => 'Pro',
+            'description' => 'Untuk bisnis berkembang.',
+            'price' => 499000,
+            'currency' => 'IDR',
+            'billing_interval' => 'monthly',
+            'limits' => ['outlets' => 5, 'active_tables' => 200, 'staff' => 20],
+            'features' => ['menu', 'reports'],
+            'is_active' => true,
+            'position' => 2,
+        ])
+        ->assertRedirect(route('platform.dashboard'));
+
+    $createdPlan = Plan::query()->where('code', 'pro')->firstOrFail();
+
+    $this->patch(route('platform.plans.update', $createdPlan), [
+        'code' => 'pro',
+        'name' => 'Pro Plus',
+        'description' => 'Untuk bisnis berkembang.',
+        'price' => 599000,
+        'currency' => 'IDR',
+        'billing_interval' => 'yearly',
+        'limits' => ['outlets' => 8, 'active_tables' => 300, 'staff' => 30],
+        'features' => ['menu', 'reports', 'analytics'],
+        'is_active' => true,
+        'position' => 1,
+    ])->assertRedirect(route('platform.dashboard'));
+
+    $this->patch(route('platform.tenants.status.update', $tenant), [
+        'status' => TenantStatus::Suspended->value,
+    ])->assertRedirect(route('platform.dashboard'));
+
+    $this->patch(route('platform.subscriptions.update', $subscription), [
+        'plan_id' => $newPlan->id,
+        'status' => SubscriptionStatus::Active->value,
+    ])->assertRedirect(route('platform.dashboard'));
+
+    $this->patch(route('platform.invoices.void', $invoice), [])
+        ->assertRedirect(route('platform.dashboard'));
+
+    expect($createdPlan->fresh()->name)->toBe('Pro Plus')
+        ->and($tenant->fresh()->status)->toBe(TenantStatus::Suspended)
+        ->and($subscription->fresh()->plan_id)->toBe($newPlan->id)
+        ->and($subscription->fresh()->status)->toBe(SubscriptionStatus::Active)
+        ->and($invoice->fresh()->status)->toBe(SaasInvoiceStatus::Void);
+
+    expect(AuditLog::withoutGlobalScopes()
+        ->whereIn('event', [
+            'platform.plan.created',
+            'platform.plan.updated',
+            'platform.tenant.status_updated',
+            'platform.subscription.updated',
+            'platform.invoice.voided',
+        ])
+        ->count())->toBe(5);
 });

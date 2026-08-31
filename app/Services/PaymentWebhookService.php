@@ -19,6 +19,7 @@ final class PaymentWebhookService
         private readonly OrderStatusService $statuses,
         private readonly AuditLogService $audits,
         private readonly PaymentLifecycleService $lifecycle,
+        private readonly AnalyticsEventService $analytics,
     ) {}
 
     /**
@@ -127,6 +128,19 @@ final class PaymentWebhookService
                         'provider' => $provider,
                     ],
                 ]);
+
+                $analyticsEvent = match ($payment->status) {
+                    PaymentStatus::Paid => 'payment_paid',
+                    PaymentStatus::Failed => 'payment_failed',
+                    default => null,
+                };
+
+                if ($analyticsEvent !== null) {
+                    $this->analytics->record($analyticsEvent, (int) $payment->tenant_id, (int) $payment->outlet_id, [
+                        'order_id' => (int) $payment->order_id,
+                        'properties' => ['status' => $payment->status->value],
+                    ]);
+                }
             }
 
             return $this->result($payment, false);

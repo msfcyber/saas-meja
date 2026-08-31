@@ -6,6 +6,7 @@ use App\Enums\SaasInvoiceStatus;
 use App\Enums\SubscriptionStatus;
 use App\Enums\TenantStatus;
 use App\Http\Controllers\Controller;
+use App\Models\AnalyticsEvent;
 use App\Models\AuditLog;
 use App\Models\Outlet;
 use App\Models\PaymentEvent;
@@ -14,6 +15,7 @@ use App\Models\SaasInvoice;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\AnalyticsEventService;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -58,6 +60,23 @@ class PlatformDashboardController extends Controller
             ->latest('id')
             ->limit(8)
             ->get();
+        $subscriptions = Subscription::withoutGlobalScopes()
+            ->with(['tenant', 'plan'])
+            ->latest('id')
+            ->limit(20)
+            ->get();
+        $invoices = SaasInvoice::withoutGlobalScopes()
+            ->with(['tenant', 'subscription.plan'])
+            ->latest('id')
+            ->limit(20)
+            ->get();
+        $analyticsSince = now()->subDays(30);
+        $analyticsCounts = AnalyticsEvent::query()
+            ->where('occurred_at', '>=', $analyticsSince)
+            ->whereIn('event', AnalyticsEventService::EVENTS)
+            ->selectRaw('event, count(*) as total')
+            ->groupBy('event')
+            ->pluck('total', 'event');
 
         return Inertia::render('platform/dashboard', [
             'overview' => [
@@ -85,6 +104,10 @@ class PlatformDashboardController extends Controller
                     'currency' => $plan->currency,
                     'billing_interval' => $plan->billing_interval,
                     'is_active' => $plan->is_active,
+                    'description' => $plan->description,
+                    'limits' => $plan->limits,
+                    'features' => $plan->features,
+                    'position' => $plan->position,
                     'subscribers' => (int) ($planSubscriberCounts[$plan->id] ?? 0),
                 ])
                 ->values(),
@@ -105,6 +128,43 @@ class PlatformDashboardController extends Controller
                     ],
                 ];
             })->values(),
+            'subscriptions' => $subscriptions->map(function (Subscription $subscription): array {
+                $tenant = $subscription->getRelationValue('tenant');
+                $plan = $subscription->getRelationValue('plan');
+
+                return [
+                    'id' => $subscription->id,
+                    'tenant' => $tenant instanceof Tenant ? $tenant->name : 'Tenant tidak tersedia',
+                    'tenant_id' => $subscription->tenant_id,
+                    'plan_id' => $subscription->plan_id,
+                    'plan' => $plan instanceof Plan ? $plan->name : null,
+                    'status' => $subscription->status->value,
+                    'period_ends_at' => ($subscription->current_period_ends_at ?? $subscription->trial_ends_at)?->toIso8601String(),
+                ];
+            })->values(),
+            'invoices' => $invoices->map(function (SaasInvoice $invoice): array {
+                $tenant = $invoice->getRelationValue('tenant');
+                $subscription = $invoice->getRelationValue('subscription');
+
+                return [
+                    'id' => $invoice->id,
+                    'invoice_number' => $invoice->invoice_number,
+                    'tenant' => $tenant instanceof Tenant ? $tenant->name : 'Tenant tidak tersedia',
+                    'subscription' => $subscription?->plan?->name,
+                    'status' => $invoice->status->value,
+                    'amount' => $invoice->amount,
+                    'currency' => $invoice->currency,
+                    'due_at' => $invoice->due_at?->toIso8601String(),
+                    'paid_at' => $invoice->paid_at?->toIso8601String(),
+                ];
+            })->values(),
+            'analytics' => [
+                'period_days' => 30,
+                'events' => collect(AnalyticsEventService::EVENTS)->map(fn (string $event): array => [
+                    'event' => $event,
+                    'total' => (int) ($analyticsCounts[$event] ?? 0),
+                ])->values(),
+            ],
             'audit_logs' => $recentAudits->map(function (AuditLog $audit): array {
                 $tenant = $audit->getRelationValue('tenant');
                 $actor = $audit->getRelationValue('actor');

@@ -23,7 +23,7 @@ class OutletPolicy
             return false;
         }
 
-        if ($tenant->membership?->is_owner === true) {
+        if ($tenant->membership->is_owner === true) {
             return true;
         }
 

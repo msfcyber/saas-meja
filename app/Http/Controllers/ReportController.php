@@ -17,7 +17,7 @@ class ReportController extends Controller
         SalesReportService $reports,
     ): Response {
         $tenant = $context->tenantOrFail();
-        $isOwner = $tenant->membership?->is_owner === true;
+        $isOwner = $tenant->membership->is_owner === true;
         $filters = $request->validated();
 
         if (! $isOwner && empty($filters['outlet'])) {

@@ -46,7 +46,7 @@ class OutletController extends Controller
             ->select('outlet_id', DB::raw('count(*) as aggregate'))
             ->groupBy('outlet_id')
             ->pluck('aggregate', 'outlet_id');
-        $outlets = ($tenant->membership?->is_owner === true
+        $outlets = ($tenant->membership->is_owner === true
             ? Outlet::query()
             : $request->user()->assignedOutletsFor($tenant)
                 ->where('outlets.is_active', true))

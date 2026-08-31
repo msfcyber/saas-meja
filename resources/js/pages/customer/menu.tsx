@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useDeferredValue, useEffect, useState } from 'react';
 import { CustomerHeader } from '@/components/customer-header';
+import { trackAnalytics } from '@/hooks/use-analytics';
 import {
     Dialog,
     DialogContent,
@@ -156,6 +157,13 @@ export default function Menu({
         setSelectedQuantity(1);
         setSelectedNote('');
         setDialogError(null);
+
+        if (isPublicMenu && qrToken) {
+            trackAnalytics('product_viewed', {
+                qrToken,
+                productId: item.id,
+            });
+        }
     };
 
     const addItem = (item: CustomerMenuItem) => {
@@ -265,6 +273,10 @@ export default function Menu({
                     product: selected,
                 },
             ];
+        });
+        trackAnalytics('add_to_cart', {
+            qrToken,
+            productId: selected.id,
         });
         setSelected(null);
     };

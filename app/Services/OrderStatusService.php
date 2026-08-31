@@ -11,7 +11,10 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 final class OrderStatusService
 {
-    public function __construct(private readonly TelemetryService $telemetry) {}
+    public function __construct(
+        private readonly TelemetryService $telemetry,
+        private readonly AnalyticsEventService $analytics,
+    ) {}
 
     public function transition(
         Order $order,
@@ -62,6 +65,25 @@ final class OrderStatusService
             'to_status' => $to->value,
             'actor_type' => $actorType,
         ]);
+
+        $analyticsEvent = match ($to) {
+            OrderStatus::Accepted => 'order_accepted',
+            OrderStatus::Preparing => 'order_preparing',
+            OrderStatus::Ready => 'order_ready',
+            OrderStatus::Served => 'order_served',
+            OrderStatus::Completed => 'order_completed',
+            default => null,
+        };
+
+        if ($analyticsEvent !== null) {
+            $this->analytics->record($analyticsEvent, (int) $order->tenant_id, (int) $order->outlet_id, [
+                'order_id' => (int) $order->getKey(),
+                'properties' => [
+                    'from_status' => $from->value,
+                    'to_status' => $to->value,
+                ],
+            ]);
+        }
 
         $createdAt = $order->getAttribute('created_at');
 

@@ -1,4 +1,4 @@
-import { Head, Link } from "@inertiajs/react";
+import { Head, Link } from '@inertiajs/react';
 import {
     ArrowLeft,
     ArrowRight,
@@ -10,17 +10,18 @@ import {
     Smartphone,
     Trash2,
     WalletCards,
-} from "lucide-react";
-import { useEffect, useState } from "react";
-import { CustomerHeader } from "@/components/customer-header";
-import { formatCurrency, menuItems } from "@/data/demo";
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CustomerHeader } from '@/components/customer-header';
+import { trackAnalytics } from '@/hooks/use-analytics';
+import { formatCurrency, menuItems } from '@/data/demo';
 import {
     clearCustomerCart,
     itemUnitPrice,
     loadCustomerCart,
     saveCustomerCart,
-} from "@/lib/customer-cart";
-import type { CustomerCartItem } from "@/types/customer";
+} from '@/lib/customer-cart';
+import type { CustomerCartItem } from '@/types/customer';
 
 type Props = {
     access?: { valid: boolean; message: string | null };
@@ -37,37 +38,37 @@ type Props = {
 
 const paymentMethods = [
     {
-        id: "qris",
-        label: "QRIS",
-        detail: "Scan dari semua aplikasi pembayaran",
+        id: 'qris',
+        label: 'QRIS',
+        detail: 'Scan dari semua aplikasi pembayaran',
         icon: QrCode,
     },
     {
-        id: "ewallet",
-        label: "E-wallet",
-        detail: "GoPay, ShopeePay, atau DANA",
+        id: 'ewallet',
+        label: 'E-wallet',
+        detail: 'GoPay, ShopeePay, atau DANA',
         icon: Smartphone,
     },
     {
-        id: "va",
-        label: "Virtual account",
-        detail: "BCA, Mandiri, BNI, dan bank lainnya",
+        id: 'va',
+        label: 'Virtual account',
+        detail: 'BCA, Mandiri, BNI, dan bank lainnya',
         icon: WalletCards,
     },
 ] as const;
 
 const demoCartItems: CustomerCartItem[] = [
     {
-        key: "demo-nasi",
+        key: 'demo-nasi',
         product_id: menuItems[0].id,
         variant_id: null,
         modifier_option_ids: [],
         quantity: 1,
-        note: "Tanpa bawang",
+        note: 'Tanpa bawang',
         product: menuItems[0],
     },
     {
-        key: "demo-kopi",
+        key: 'demo-kopi',
         product_id: menuItems[4].id,
         variant_id: null,
         modifier_option_ids: [],
@@ -87,7 +88,10 @@ async function fetchWithTimeout(
     init: RequestInit = {},
 ): Promise<Response> {
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), CHECKOUT_REQUEST_TIMEOUT_MS);
+    const timeout = window.setTimeout(
+        () => controller.abort(),
+        CHECKOUT_REQUEST_TIMEOUT_MS,
+    );
 
     try {
         return await fetch(input, { ...init, signal: controller.signal });
@@ -96,13 +100,20 @@ async function fetchWithTimeout(
     }
 }
 
-export default function Checkout({ access, qr_token, outlet, table, tax }: Props) {
+export default function Checkout({
+    access,
+    qr_token,
+    outlet,
+    table,
+    tax,
+}: Props) {
     const isPublicCheckout = access !== undefined;
     const [cart, setCart] = useState<CustomerCartItem[]>(() =>
         qr_token ? loadCustomerCart(qr_token) : [],
     );
-    const [customerName, setCustomerName] = useState("");
-    const [payment, setPayment] = useState<(typeof paymentMethods)[number]["id"]>("qris");
+    const [customerName, setCustomerName] = useState('');
+    const [payment, setPayment] =
+        useState<(typeof paymentMethods)[number]['id']>('qris');
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [idempotencyKey] = useState(makeIdempotencyKey);
@@ -113,14 +124,26 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
         }
     }, [cart, qr_token]);
 
+    useEffect(() => {
+        if (isPublicCheckout && qr_token) {
+            trackAnalytics('checkout_started', { qrToken: qr_token });
+        }
+    }, [isPublicCheckout, qr_token]);
+
     const activeCart = isPublicCheckout ? cart : demoCartItems;
-    const subtotal = activeCart.reduce((sum, item) => sum + itemUnitPrice(item) * item.quantity, 0);
+    const subtotal = activeCart.reduce(
+        (sum, item) => sum + itemUnitPrice(item) * item.quantity,
+        0,
+    );
     const taxEnabled = isPublicCheckout ? tax?.enabled === true : true;
     const taxRate = isPublicCheckout ? (tax?.rate_basis_points ?? 0) : 1000;
     const taxInclusive = isPublicCheckout ? tax?.inclusive === true : false;
     const taxDenominator = taxInclusive ? 10000 + taxRate : 10000;
     const taxAmount = taxEnabled
-        ? Math.floor((subtotal * taxRate + Math.floor(taxDenominator / 2)) / taxDenominator)
+        ? Math.floor(
+              (subtotal * taxRate + Math.floor(taxDenominator / 2)) /
+                  taxDenominator,
+          )
         : 0;
     const total = subtotal + (taxInclusive ? 0 : taxAmount);
     const itemCount = activeCart.reduce((sum, item) => sum + item.quantity, 0);
@@ -130,7 +153,13 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
             current
                 .map((item) =>
                     item.key === key
-                        ? { ...item, quantity: Math.max(0, Math.min(50, item.quantity + amount)) }
+                        ? {
+                              ...item,
+                              quantity: Math.max(
+                                  0,
+                                  Math.min(50, item.quantity + amount),
+                              ),
+                          }
                         : item,
                 )
                 .filter((item) => item.quantity > 0),
@@ -144,8 +173,10 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
             return;
         }
 
-        if (typeof navigator !== "undefined" && !navigator.onLine) {
-            setError("Tidak ada koneksi internet. Periksa jaringanmu lalu coba lagi.");
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            setError(
+                'Tidak ada koneksi internet. Periksa jaringanmu lalu coba lagi.',
+            );
             return;
         }
 
@@ -153,12 +184,12 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
         setError(null);
 
         try {
-            const response = await fetchWithTimeout("/api/public/orders", {
-                method: "POST",
+            const response = await fetchWithTimeout('/api/public/orders', {
+                method: 'POST',
                 headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    "Idempotency-Key": idempotencyKey,
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': idempotencyKey,
                 },
                 body: JSON.stringify({
                     qr_token,
@@ -181,41 +212,49 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
             } = await response.json();
 
             if (!response.ok || !body.access_token || !body.tracking_url) {
-                const validationMessage = body.errors ? Object.values(body.errors)[0]?.[0] : null;
+                const validationMessage = body.errors
+                    ? Object.values(body.errors)[0]?.[0]
+                    : null;
                 throw new Error(
-                    validationMessage ?? body.message ?? "Checkout belum dapat diproses.",
+                    validationMessage ??
+                        body.message ??
+                        'Checkout belum dapat diproses.',
                 );
             }
 
             const paymentResponse = await fetchWithTimeout(
                 `/api/public/orders/${body.access_token}/payment`,
                 {
-                    method: "POST",
-                    headers: { Accept: "application/json" },
+                    method: 'POST',
+                    headers: { Accept: 'application/json' },
                 },
             );
             const paymentBody: { redirect_url?: string; message?: string } =
                 await paymentResponse.json();
 
             if (!paymentResponse.ok || !paymentBody.redirect_url) {
-                throw new Error(paymentBody.message ?? "Sesi pembayaran belum dapat dibuat.");
+                throw new Error(
+                    paymentBody.message ??
+                        'Sesi pembayaran belum dapat dibuat.',
+                );
             }
 
             clearCustomerCart(qr_token);
             window.location.assign(paymentBody.redirect_url);
         } catch (exception) {
             const isTimeout =
-                exception instanceof Error && exception.name === "AbortError";
-            const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+                exception instanceof Error && exception.name === 'AbortError';
+            const isOffline =
+                typeof navigator !== 'undefined' && !navigator.onLine;
 
             setError(
                 isTimeout
-                    ? "Koneksi terlalu lama. Periksa jaringanmu lalu tekan coba lagi."
+                    ? 'Koneksi terlalu lama. Periksa jaringanmu lalu tekan coba lagi.'
                     : isOffline
-                      ? "Koneksi internet terputus. Periksa jaringanmu lalu coba lagi."
+                      ? 'Koneksi internet terputus. Periksa jaringanmu lalu coba lagi.'
                       : exception instanceof Error
                         ? exception.message
-                        : "Checkout belum dapat diproses.",
+                        : 'Checkout belum dapat diproses.',
             );
             setProcessing(false);
         }
@@ -224,31 +263,45 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
     return (
         <>
             <Head title="Konfirmasi pesanan" />
-            <div className="min-h-screen bg-background pb-28">
-                <CustomerHeader minimal outletName={outlet?.name} tableName={table?.name} />
+            <div className="bg-background min-h-screen pb-28">
+                <CustomerHeader
+                    minimal
+                    outletName={outlet?.name}
+                    tableName={table?.name}
+                />
                 <main className="mx-auto max-w-5xl px-4 py-7 sm:px-6 sm:py-12">
                     <Link
-                        href={isPublicCheckout && qr_token ? `/q/${qr_token}` : "/demo/menu"}
-                        className="inline-flex min-h-11 items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground"
+                        href={
+                            isPublicCheckout && qr_token
+                                ? `/q/${qr_token}`
+                                : '/demo/menu'
+                        }
+                        className="text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center gap-2 text-sm font-bold"
                     >
-                        <ArrowLeft className="size-4" aria-hidden="true" /> Kembali ke menu
+                        <ArrowLeft className="size-4" aria-hidden="true" />{' '}
+                        Kembali ke menu
                     </Link>
                     <div className="mt-5 grid gap-8 lg:grid-cols-[1fr_0.72fr] lg:items-start">
-                        <form id="checkout-form" onSubmit={submitOrder} aria-busy={processing}>
-                            <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
+                        <form
+                            id="checkout-form"
+                            onSubmit={submitOrder}
+                            aria-busy={processing}
+                        >
+                            <p className="text-primary text-xs font-bold tracking-[0.16em] uppercase">
                                 Langkah terakhir
                             </p>
                             <h1 className="font-display mt-2 text-4xl font-bold tracking-tight sm:text-5xl">
                                 Periksa pesananmu.
                             </h1>
-                            <p className="mt-3 text-muted-foreground">
-                                {outlet?.name ?? "Kedai Sore"} · {table?.name ?? "Meja 08"}
+                            <p className="text-muted-foreground mt-3">
+                                {outlet?.name ?? 'Kedai Sore'} ·{' '}
+                                {table?.name ?? 'Meja 08'}
                             </p>
 
-                            <section className="mt-8 overflow-hidden rounded-[1.5rem] border bg-card">
+                            <section className="bg-card mt-8 overflow-hidden rounded-[1.5rem] border">
                                 <div className="flex items-center justify-between border-b px-5 py-4">
                                     <h2 className="font-bold">Pesanan kamu</h2>
-                                    <span className="text-xs text-muted-foreground">
+                                    <span className="text-muted-foreground text-xs">
                                         {itemCount} item
                                     </span>
                                 </div>
@@ -257,7 +310,7 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                                         key={item.key}
                                         className="flex gap-4 border-b p-5 last:border-b-0"
                                     >
-                                        <div className="size-20 shrink-0 overflow-hidden rounded-2xl bg-muted sm:size-24">
+                                        <div className="bg-muted size-20 shrink-0 overflow-hidden rounded-2xl sm:size-24">
                                             {item.product.image ? (
                                                 <img
                                                     src={item.product.image}
@@ -265,8 +318,11 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                                                     className="size-full object-cover"
                                                 />
                                             ) : (
-                                                <div className="flex size-full items-center justify-center text-primary">
-                                                    <QrCode className="size-7" aria-hidden="true" />
+                                                <div className="text-primary flex size-full items-center justify-center">
+                                                    <QrCode
+                                                        className="size-7"
+                                                        aria-hidden="true"
+                                                    />
                                                 </div>
                                             )}
                                         </div>
@@ -277,10 +333,12 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                                                         {item.product.name}
                                                     </h3>
                                                     {(item.product.variants?.find(
-                                                        (variant) => variant.id === item.variant_id,
+                                                        (variant) =>
+                                                            variant.id ===
+                                                            item.variant_id,
                                                     )?.name ||
                                                         item.note) && (
-                                                        <p className="mt-1 text-xs text-muted-foreground">
+                                                        <p className="text-muted-foreground mt-1 text-xs">
                                                             {
                                                                 item.product.variants?.find(
                                                                     (variant) =>
@@ -288,13 +346,15 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                                                                         item.variant_id,
                                                                 )?.name
                                                             }
-                                                            {item.note && ` · ${item.note}`}
+                                                            {item.note &&
+                                                                ` · ${item.note}`}
                                                         </p>
                                                     )}
                                                 </div>
                                                 <p className="shrink-0 text-sm font-bold">
                                                     {formatCurrency(
-                                                        itemUnitPrice(item) * item.quantity,
+                                                        itemUnitPrice(item) *
+                                                            item.quantity,
                                                     )}
                                                 </p>
                                             </div>
@@ -304,9 +364,12 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                                                         <button
                                                             type="button"
                                                             onClick={() =>
-                                                                updateQuantity(item.key, -1)
+                                                                updateQuantity(
+                                                                    item.key,
+                                                                    -1,
+                                                                )
                                                             }
-                                                            className="flex size-9 items-center justify-center rounded-full hover:bg-secondary"
+                                                            className="hover:bg-secondary flex size-9 items-center justify-center rounded-full"
                                                             aria-label={`Kurangi ${item.product.name}`}
                                                         >
                                                             <Minus className="size-3.5" />
@@ -317,9 +380,12 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                                                         <button
                                                             type="button"
                                                             onClick={() =>
-                                                                updateQuantity(item.key, 1)
+                                                                updateQuantity(
+                                                                    item.key,
+                                                                    1,
+                                                                )
                                                             }
-                                                            className="flex size-9 items-center justify-center rounded-full hover:bg-secondary"
+                                                            className="hover:bg-secondary flex size-9 items-center justify-center rounded-full"
                                                             aria-label={`Tambah ${item.product.name}`}
                                                         >
                                                             <Plus className="size-3.5" />
@@ -331,16 +397,17 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                                                             setCart((current) =>
                                                                 current.filter(
                                                                     (entry) =>
-                                                                        entry.key !== item.key,
+                                                                        entry.key !==
+                                                                        item.key,
                                                                 ),
                                                             )
                                                         }
-                                                        className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                                        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold"
                                                     >
                                                         <Trash2
                                                             className="size-3.5"
                                                             aria-hidden="true"
-                                                        />{" "}
+                                                        />{' '}
                                                         Hapus
                                                     </button>
                                                 </div>
@@ -348,45 +415,53 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                                         </div>
                                     </div>
                                 ))}
-                                {isPublicCheckout && activeCart.length === 0 && (
-                                    <div className="p-8 text-center text-sm text-muted-foreground">
-                                        Keranjang masih kosong. Kembali ke menu untuk memilih
-                                        hidangan.
-                                    </div>
-                                )}
+                                {isPublicCheckout &&
+                                    activeCart.length === 0 && (
+                                        <div className="text-muted-foreground p-8 text-center text-sm">
+                                            Keranjang masih kosong. Kembali ke
+                                            menu untuk memilih hidangan.
+                                        </div>
+                                    )}
                             </section>
 
-                            <section className="mt-6 rounded-[1.5rem] border bg-card p-5 sm:p-6">
-                                <label className="font-bold" htmlFor="customer-name">
-                                    Nama pemesan{" "}
-                                    <span className="font-normal text-muted-foreground">
+                            <section className="bg-card mt-6 rounded-[1.5rem] border p-5 sm:p-6">
+                                <label
+                                    className="font-bold"
+                                    htmlFor="customer-name"
+                                >
+                                    Nama pemesan{' '}
+                                    <span className="text-muted-foreground font-normal">
                                         (opsional)
                                     </span>
                                 </label>
                                 <input
                                     id="customer-name"
                                     value={customerName}
-                                    onChange={(event) => setCustomerName(event.target.value)}
-                                    className="mt-4 min-h-12 w-full rounded-xl border bg-background px-4 text-sm outline-none focus:ring-2 focus:ring-ring"
+                                    onChange={(event) =>
+                                        setCustomerName(event.target.value)
+                                    }
+                                    className="bg-background focus:ring-ring mt-4 min-h-12 w-full rounded-xl border px-4 text-sm outline-none focus:ring-2"
                                     placeholder="Agar staf mudah memanggilmu"
                                     autoComplete="name"
                                     maxLength={120}
                                 />
                             </section>
 
-                            <section className="mt-6 rounded-[1.5rem] border bg-card p-5 sm:p-6">
+                            <section className="bg-card mt-6 rounded-[1.5rem] border p-5 sm:p-6">
                                 <h2 className="font-bold">Pilih pembayaran</h2>
                                 <div className="mt-4 grid gap-3">
                                     {paymentMethods.map((method) => (
                                         <button
                                             key={method.id}
                                             type="button"
-                                            onClick={() => setPayment(method.id)}
+                                            onClick={() =>
+                                                setPayment(method.id)
+                                            }
                                             aria-pressed={payment === method.id}
-                                            className={`flex min-h-16 items-center gap-3 rounded-2xl border p-3 text-left transition-colors ${payment === method.id ? "border-primary bg-primary/6" : "hover:bg-secondary/60"}`}
+                                            className={`flex min-h-16 items-center gap-3 rounded-2xl border p-3 text-left transition-colors ${payment === method.id ? 'border-primary bg-primary/6' : 'hover:bg-secondary/60'}`}
                                         >
                                             <span
-                                                className={`flex size-11 items-center justify-center rounded-xl ${payment === method.id ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+                                                className={`flex size-11 items-center justify-center rounded-xl ${payment === method.id ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}
                                             >
                                                 <method.icon
                                                     className="size-5"
@@ -397,31 +472,34 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                                                 <span className="block text-sm font-bold">
                                                     {method.label}
                                                 </span>
-                                                <span className="mt-1 block text-xs text-muted-foreground">
+                                                <span className="text-muted-foreground mt-1 block text-xs">
                                                     {method.detail}
                                                 </span>
                                             </span>
                                             <span
-                                                className={`flex size-5 items-center justify-center rounded-full border ${payment === method.id ? "border-primary bg-primary text-white" : ""}`}
+                                                className={`flex size-5 items-center justify-center rounded-full border ${payment === method.id ? 'border-primary bg-primary text-white' : ''}`}
                                             >
                                                 {payment === method.id && (
-                                                    <Check className="size-3" aria-hidden="true" />
+                                                    <Check
+                                                        className="size-3"
+                                                        aria-hidden="true"
+                                                    />
                                                 )}
                                             </span>
                                         </button>
                                     ))}
                                 </div>
                                 {isPublicCheckout && (
-                                    <p className="mt-4 rounded-xl bg-secondary/60 p-3 text-xs leading-5 text-muted-foreground">
-                                        Pembayaran akan dibuat sebagai transaksi tertunda. Order
-                                        baru masuk ke antrean setelah pembayaran diverifikasi
-                                        server.
+                                    <p className="bg-secondary/60 text-muted-foreground mt-4 rounded-xl p-3 text-xs leading-5">
+                                        Pembayaran akan dibuat sebagai transaksi
+                                        tertunda. Order baru masuk ke antrean
+                                        setelah pembayaran diverifikasi server.
                                     </p>
                                 )}
                             </section>
                         </form>
 
-                        <aside className="rounded-[1.75rem] bg-[#283025] p-6 text-[#fffaf0] shadow-[0_30px_80px_-50px_rgba(40,48,37,0.8)] lg:sticky lg:top-24 sm:p-7">
+                        <aside className="rounded-[1.75rem] bg-[#283025] p-6 text-[#fffaf0] shadow-[0_30px_80px_-50px_rgba(40,48,37,0.8)] sm:p-7 lg:sticky lg:top-24">
                             <p className="text-xs font-bold tracking-[0.16em] text-[#dfa281] uppercase">
                                 Ringkasan pembayaran
                             </p>
@@ -432,7 +510,9 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                                 </div>
                                 <div className="flex justify-between text-[#cbd1c3]">
                                     <dt>
-                                        {taxEnabled ? (tax?.name ?? "Pajak restoran") : "Pajak"}
+                                        {taxEnabled
+                                            ? (tax?.name ?? 'Pajak restoran')
+                                            : 'Pajak'}
                                         {taxEnabled && ` (${taxRate / 100}%)`}
                                     </dt>
                                     <dd>{formatCurrency(taxAmount)}</dd>
@@ -451,37 +531,54 @@ export default function Checkout({ access, qr_token, outlet, table, tax }: Props
                             </div>
                             {error && (
                                 <p
-                                     id="checkout-error"
-                                     className="mt-5 rounded-xl bg-red-400/15 p-3 text-sm font-semibold text-red-100"
-                                     role="alert"
-                                 >
+                                    id="checkout-error"
+                                    className="mt-5 rounded-xl bg-red-400/15 p-3 text-sm font-semibold text-red-100"
+                                    role="alert"
+                                >
                                     {error}
                                 </p>
                             )}
                             {isPublicCheckout ? (
                                 <button
                                     type="submit"
-                                     form="checkout-form"
-                                     disabled={processing || activeCart.length === 0}
-                                     aria-busy={processing}
-                                     aria-describedby={error ? "checkout-error" : undefined}
-                                     className="mt-7 flex min-h-13 w-full items-center justify-between rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                                 >
-                                     {processing ? "Memproses..." : error ? "Coba lagi" : "Lanjutkan pembayaran"}{" "}
-                                    <ArrowRight className="size-4" aria-hidden="true" />
+                                    form="checkout-form"
+                                    disabled={
+                                        processing || activeCart.length === 0
+                                    }
+                                    aria-busy={processing}
+                                    aria-describedby={
+                                        error ? 'checkout-error' : undefined
+                                    }
+                                    className="bg-primary text-primary-foreground hover:bg-primary/90 mt-7 flex min-h-13 w-full items-center justify-between rounded-full px-5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {processing
+                                        ? 'Memproses...'
+                                        : error
+                                          ? 'Coba lagi'
+                                          : 'Lanjutkan pembayaran'}{' '}
+                                    <ArrowRight
+                                        className="size-4"
+                                        aria-hidden="true"
+                                    />
                                 </button>
                             ) : (
                                 <Link
                                     href="/demo/tracking"
-                                    className="mt-7 flex min-h-13 items-center justify-between rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+                                    className="bg-primary text-primary-foreground hover:bg-primary/90 mt-7 flex min-h-13 items-center justify-between rounded-full px-5 text-sm font-bold transition-colors"
                                 >
-                                    Bayar sekarang{" "}
-                                    <ArrowRight className="size-4" aria-hidden="true" />
+                                    Bayar sekarang{' '}
+                                    <ArrowRight
+                                        className="size-4"
+                                        aria-hidden="true"
+                                    />
                                 </Link>
                             )}
                             <p className="mt-5 flex items-center justify-center gap-2 text-center text-xs text-[#bfc5b7]">
-                                <LockKeyhole className="size-3.5" aria-hidden="true" /> Pembayaran
-                                aman dan terenkripsi
+                                <LockKeyhole
+                                    className="size-3.5"
+                                    aria-hidden="true"
+                                />{' '}
+                                Pembayaran aman dan terenkripsi
                             </p>
                         </aside>
                     </div>

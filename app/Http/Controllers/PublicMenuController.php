@@ -12,7 +12,9 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\TableQrToken;
 use App\Models\Tenant;
+use App\Services\AnalyticsEventService;
 use App\Services\SubscriptionEntitlementService;
+use App\Support\PublicTableAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -21,8 +23,12 @@ use Symfony\Component\HttpFoundation\Response;
 
 class PublicMenuController extends Controller
 {
-    public function show(Request $request, string $qrToken, SubscriptionEntitlementService $entitlements): Response
-    {
+    public function show(
+        Request $request,
+        string $qrToken,
+        SubscriptionEntitlementService $entitlements,
+        AnalyticsEventService $analytics,
+    ): Response {
         if (strlen($qrToken) !== 64 || ! ctype_xdigit($qrToken)) {
             return $this->invalid($request, 'QR meja tidak valid atau sudah tidak berlaku.');
         }
@@ -68,6 +74,9 @@ class PublicMenuController extends Controller
         }
 
         $token->update(['last_used_at' => now()]);
+        $access = new PublicTableAccess($qrToken, $token, $tenant, $outlet, $table);
+        $analytics->recordPublic('qr_opened', $access, $request->session()->getId());
+        $analytics->recordPublic('menu_viewed', $access, $request->session()->getId());
 
         $categories = Category::withoutGlobalScopes()
             ->where('tenant_id', $token->tenant_id)

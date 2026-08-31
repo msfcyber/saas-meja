@@ -30,9 +30,11 @@ QUEUE_CONNECTION=redis
 REDIS_QUEUE=default
 ```
 
-Horizon is not enabled by this repository yet. If it is introduced, install it
-as a deployment dependency and configure its supervisors for Redis queues only.
-Do not point Horizon at the local database queue configuration.
+The current Laravel 13 dependency graph does not have a stable Horizon release
+whose `illuminate/*` constraints include v13. The Docker deployment therefore
+uses `queue:work redis` and the existing queue monitor. Add Horizon only after a
+compatible release is available, and configure its supervisors for Redis queues
+only. Do not point Horizon at the local database queue configuration.
 
 ## Response
 

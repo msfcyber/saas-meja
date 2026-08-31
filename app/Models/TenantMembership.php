@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * @property string $status
  * @property bool $is_owner
+ * @property int $tenant_id
+ * @property int $user_id
  * @property Carbon|null $joined_at
  */
 class TenantMembership extends Pivot

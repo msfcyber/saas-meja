@@ -15,14 +15,41 @@ import PasskeyVerify from '@/components/passkey-verify';
 type Props = {
     status?: string;
     canResetPassword: boolean;
+    canUseGoogle: boolean;
 };
 
-export default function Login({ status, canResetPassword }: Props) {
+export default function Login({
+    status,
+    canResetPassword,
+    canUseGoogle,
+}: Props) {
     return (
         <>
             <Head title="Masuk" />
 
             <PasskeyVerify />
+
+            {canUseGoogle && (
+                <>
+                    <div className="text-muted-foreground relative flex items-center gap-3 text-xs">
+                        <span className="bg-border h-px flex-1" />
+                        <span>atau</span>
+                        <span className="bg-border h-px flex-1" />
+                    </div>
+                    <a
+                        href="/auth/google/redirect"
+                        className="border-input bg-background hover:bg-accent flex min-h-11 items-center justify-center gap-3 rounded-md border px-4 text-sm font-semibold transition-colors"
+                    >
+                        <span
+                            className="flex size-6 items-center justify-center rounded-full border text-xs font-bold"
+                            aria-hidden="true"
+                        >
+                            G
+                        </span>
+                        Lanjutkan dengan Google
+                    </a>
+                </>
+            )}
 
             <Form
                 {...store.form()}

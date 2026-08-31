@@ -5,25 +5,25 @@ namespace App\Services;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PDO;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
 use RuntimeException;
-use SplFileInfo;
+use Symfony\Component\Process\Process;
 use ZipArchive;
 
 final class BackupService
 {
     /**
-     * @return array{backup_id: string, directory: string, database: string, assets: string, checksums: string, pruned: int}
+     * @return array{backup_id: string, directory: string, database: string, database_driver: string, assets: string, checksums: string, remote_path: string|null, pruned: int}
      */
     public function create(?string $destination = null, ?string $connectionName = null): array
     {
         $connection = DB::connection($connectionName);
+        $driver = $connection->getDriverName();
 
-        if ($connection->getDriverName() !== 'sqlite') {
-            throw new RuntimeException('Automated application backup saat ini hanya mendukung SQLite.');
+        if (! in_array($driver, ['sqlite', 'mysql', 'mariadb'], true)) {
+            throw new RuntimeException("Automated application backup belum mendukung driver {$driver}.");
         }
 
         $root = $this->resolveDestination(
@@ -40,7 +40,8 @@ final class BackupService
         $this->ensureDirectory($directory);
 
         try {
-            $databasePath = $directory.DIRECTORY_SEPARATOR.'database.sqlite';
+            $databaseFilename = $driver === 'sqlite' ? 'database.sqlite' : 'database.sql.gz';
+            $databasePath = $directory.DIRECTORY_SEPARATOR.$databaseFilename;
             $this->snapshotDatabase($connection, $databasePath);
 
             $assetsPath = $directory.DIRECTORY_SEPARATOR.'storage-app-public.zip';
@@ -48,6 +49,7 @@ final class BackupService
 
             $checksumsPath = $directory.DIRECTORY_SEPARATOR.'SHA256SUMS';
             $this->writeChecksums($directory, $checksumsPath);
+            $remotePath = $this->uploadRemote($directory, $backupId);
             $pruned = $this->prune($root);
         } catch (\Throwable $exception) {
             File::deleteDirectory($directory);
@@ -59,8 +61,10 @@ final class BackupService
             'backup_id' => $backupId,
             'directory' => $directory,
             'database' => $databasePath,
+            'database_driver' => $driver,
             'assets' => $assetsPath,
             'checksums' => $checksumsPath,
+            'remote_path' => $remotePath,
             'pruned' => $pruned,
         ];
     }
@@ -77,7 +81,7 @@ final class BackupService
         }
 
         $verifiedFiles = $this->verifyManifest($directory);
-        $integrity = $this->verifySqlite($verifiedFiles['database']);
+        $integrity = $this->verifyDatabase($verifiedFiles['database']);
         $assetEntries = $this->verifyArchive($verifiedFiles['assets']);
 
         if ($restoreDrill) {
@@ -119,6 +123,12 @@ final class BackupService
 
     private function snapshotDatabase(Connection $connection, string $target): void
     {
+        if ($connection->getDriverName() !== 'sqlite') {
+            $this->snapshotMysql($connection, $target);
+
+            return;
+        }
+
         $pdo = $connection->getPdo();
         $quotedTarget = $pdo->quote($target);
 
@@ -128,6 +138,53 @@ final class BackupService
 
         if (! is_file($target) || (filesize($target) ?: 0) === 0) {
             throw new RuntimeException('Snapshot database SQLite tidak valid.');
+        }
+    }
+
+    private function snapshotMysql(Connection $connection, string $target): void
+    {
+        $credentialsFile = (string) config('operations.backup.mysql_credentials_file');
+        $config = $connection->getConfig();
+        $database = trim((string) ($config['database'] ?? ''));
+
+        if ($database === '' || ! is_file($credentialsFile)) {
+            throw new RuntimeException('Konfigurasi credential mysqldump tidak ditemukan.');
+        }
+
+        $process = new Process([
+            (string) config('operations.backup.mysql_dump_binary', 'mysqldump'),
+            '--defaults-extra-file='.$credentialsFile,
+            '--single-transaction',
+            '--routines',
+            '--triggers',
+            '--hex-blob',
+            '--host='.(string) ($config['host'] ?? '127.0.0.1'),
+            '--port='.(string) ($config['port'] ?? '3306'),
+            $database,
+        ], base_path());
+        $process->setTimeout((float) config('operations.backup.mysql_dump_timeout', 900));
+        $stream = gzopen($target, 'wb9');
+
+        if ($stream === false) {
+            throw new RuntimeException('File backup MySQL tidak dapat dibuat.');
+        }
+
+        try {
+            $exitCode = $process->run(function (string $type, string $buffer) use ($stream): void {
+                if ($type === Process::OUT && gzwrite($stream, $buffer) === false) {
+                    throw new RuntimeException('Output mysqldump tidak dapat ditulis.');
+                }
+            });
+        } finally {
+            gzclose($stream);
+        }
+
+        if ($exitCode !== 0) {
+            throw new RuntimeException('mysqldump gagal membuat snapshot database.');
+        }
+
+        if (! is_file($target) || (filesize($target) ?: 0) === 0) {
+            throw new RuntimeException('Snapshot database MySQL tidak valid.');
         }
     }
 
@@ -173,16 +230,57 @@ final class BackupService
             $verified[$filename] = $path;
         }
 
-        foreach (['database.sqlite', 'storage-app-public.zip'] as $requiredFile) {
-            if (! isset($verified[$requiredFile])) {
-                throw new RuntimeException("File backup {$requiredFile} tidak tercantum di manifest.");
-            }
+        $databaseFilename = isset($verified['database.sqlite'])
+            ? 'database.sqlite'
+            : (isset($verified['database.sql.gz']) ? 'database.sql.gz' : null);
+
+        if ($databaseFilename === null) {
+            throw new RuntimeException('File database backup tidak tercantum di manifest.');
+        }
+
+        if (! isset($verified['storage-app-public.zip'])) {
+            throw new RuntimeException('File backup storage-app-public.zip tidak tercantum di manifest.');
         }
 
         return [
-            'database' => $verified['database.sqlite'],
+            'database' => $verified[$databaseFilename],
             'assets' => $verified['storage-app-public.zip'],
         ];
+    }
+
+    private function verifyDatabase(string $databasePath): string
+    {
+        return str_ends_with($databasePath, '.sql.gz')
+            ? $this->verifyGzip($databasePath)
+            : $this->verifySqlite($databasePath);
+    }
+
+    private function verifyGzip(string $databasePath): string
+    {
+        $stream = gzopen($databasePath, 'rb');
+
+        if ($stream === false) {
+            throw new RuntimeException('Archive database MySQL tidak dapat dibuka.');
+        }
+
+        try {
+            while (true) {
+                $chunk = gzread($stream, 1024 * 1024);
+
+                if ($chunk === false) {
+                    throw new RuntimeException('Archive database MySQL tidak dapat dibaca.');
+                }
+
+                if ($chunk === '') {
+                    break;
+                }
+            }
+
+        } finally {
+            gzclose($stream);
+        }
+
+        return 'gzip-ok';
     }
 
     private function verifySqlite(string $databasePath): string
@@ -245,13 +343,13 @@ final class BackupService
         $this->ensureDirectory($staging);
 
         try {
-            $restoredDatabase = $staging.DIRECTORY_SEPARATOR.'database.sqlite';
+            $restoredDatabase = $staging.DIRECTORY_SEPARATOR.basename($databasePath);
 
             if (! File::copy($databasePath, $restoredDatabase)) {
                 throw new RuntimeException('Restore drill database gagal disalin.');
             }
 
-            $this->verifySqlite($restoredDatabase);
+            $this->verifyDatabase($restoredDatabase);
             $this->verifyArchive($archivePath, $staging.DIRECTORY_SEPARATOR.'storage-app-public');
         } finally {
             File::deleteDirectory($staging);
@@ -280,29 +378,13 @@ final class BackupService
         }
 
         try {
-            $source = storage_path('app/public');
+            $disk = Storage::disk('public');
 
-            if (is_dir($source)) {
-                $sourcePath = rtrim(realpath($source) ?: $source, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-                $files = new RecursiveIteratorIterator(
-                    new RecursiveDirectoryIterator($source, RecursiveDirectoryIterator::SKIP_DOTS),
-                );
+            foreach ($disk->allFiles() as $relativePath) {
+                $contents = $disk->get($relativePath);
 
-                /** @var SplFileInfo $file */
-                foreach ($files as $file) {
-                    if (! $file->isFile()) {
-                        continue;
-                    }
-
-                    $relativePath = substr($file->getPathname(), strlen($sourcePath));
-
-                    if ($relativePath === '') {
-                        continue;
-                    }
-
-                    if (! $archive->addFile($file->getPathname(), str_replace('\\', '/', $relativePath))) {
-                        throw new RuntimeException('File asset gagal ditambahkan ke archive.');
-                    }
+                if (! $archive->addFromString($relativePath, $contents)) {
+                    throw new RuntimeException('File asset gagal ditambahkan ke archive.');
                 }
             }
 
@@ -336,6 +418,41 @@ final class BackupService
         if (File::put($target, implode(PHP_EOL, $lines).PHP_EOL) === false) {
             throw new RuntimeException('Manifest checksum backup gagal disimpan.');
         }
+    }
+
+    private function uploadRemote(string $directory, string $backupId): ?string
+    {
+        if (! (bool) config('operations.backup.remote_enabled', false)) {
+            return null;
+        }
+
+        $disk = Storage::disk((string) config('operations.backup.remote_disk', 's3-backup'));
+        $prefix = trim((string) config('operations.backup.remote_prefix', 'meja'), '/');
+        $remoteDirectory = trim($prefix.'/'.$backupId, '/');
+
+        if (str_contains($remoteDirectory, '..')) {
+            throw new RuntimeException('Prefix remote backup tidak aman.');
+        }
+
+        foreach (File::files($directory) as $file) {
+            $stream = fopen($file->getPathname(), 'rb');
+
+            if ($stream === false) {
+                throw new RuntimeException('File backup tidak dapat dibaca untuk upload.');
+            }
+
+            $remoteFile = $remoteDirectory.'/'.$file->getFilename();
+
+            try {
+                if (! $disk->put($remoteFile, $stream) || ! $disk->exists($remoteFile)) {
+                    throw new RuntimeException('Upload backup off-host gagal diverifikasi.');
+                }
+            } finally {
+                fclose($stream);
+            }
+        }
+
+        return $remoteDirectory;
     }
 
     private function prune(string $root): int

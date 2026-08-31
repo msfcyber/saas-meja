@@ -1,6 +1,6 @@
 # Progress Pengembangan
 
-Terakhir diperbarui: 30 Agustus 2026
+Terakhir diperbarui: 31 Agustus 2026
 
 ## Selesai - Frontend Foundation
 
@@ -92,6 +92,14 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Terapkan credential Midtrans tenant-owned yang terenkripsi dan berversi, rotasi owner-only, binding payment atomik, serta verifikasi webhook dengan credential retired yang terikat pada payment.
 - [x] Terapkan penugasan outlet untuk staf, termasuk kebijakan default/backfill dan enforcement pada context/policy.
 
+## Gap PRD Tersisa
+
+- [x] Tambahkan registrasi/login owner melalui Google sesuai PRD 8.10 dengan Socialite, verifikasi email provider, account linking, redirect onboarding, dan konfigurasi env-only.
+- [x] Lengkapi halaman dan action superadmin untuk tenant, paket/harga, subscription, dan pembatalan invoice pending; semua perubahan menulis audit log.
+- [x] Implementasikan event analytics minimum, privacy-safe hashing, validasi QR/product, tracking customer web, dan dashboard funnel 30 hari.
+- [x] Selaraskan baseline produksi dengan MySQL, Redis queue worker, S3-compatible public storage, dan deployment Docker/Nginx/PHP-FPM; Horizon menunggu rilis kompatibel Laravel 13.
+- [x] Hubungkan backup produksi ke mysqldump/gzip, asset disk, storage S3 private terenkripsi, checksum, dan restore drill terisolasi; validasi database produksi tetap memerlukan target recovery operator.
+
 ## Task Berikutnya - Backend Foundation
 
 - [x] Buat model, migration, factory, dan seeder untuk tenant, outlet, tenant user, role/permission, kategori, produk, varian, modifier, meja, dan QR token.
@@ -122,7 +130,7 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Terapkan enforcement limit outlet dan staf pada flow CRUD resource.
 - [x] Tambahkan laporan penjualan tenant-scoped dengan filter tanggal/outlet, agregasi payment, produk terlaris, dan transaksi terbaru.
 - [x] Tambahkan audit log tenant-aware untuk subscription, invoice, payment, role, dan tax setup.
-- [x] Tambahkan dashboard superadmin platform read-only, gate, dan command grant/revoke.
+- [x] Tambahkan dashboard superadmin platform, gate, command grant/revoke, dan action management ter-audit.
 - [x] Tambahkan correlation ID, structured request/lifecycle telemetry, health summary, dan runbook backup/recovery.
 - [x] Tambahkan queue backlog monitoring terjadwal dan structured `QueueBusy` telemetry.
 - [x] Tambahkan opt-in SQLite backup command dengan asset archive, checksum, dan retention.
@@ -141,5 +149,6 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Feature test akses platform dan agregasi tenant lintas konteks.
 - [x] Feature test propagation correlation ID dan korelasi audit request.
 - [x] Feature test structured telemetry, redaction atribut, dan health threshold.
-- [ ] Browser test alur scan QR sampai struk pada viewport 360 px, tablet, dan desktop.
-- [ ] Audit aksesibilitas, Core Web Vitals, optimasi gambar, empty/error/loading state, dan koneksi lambat.
+- [ ] Sediakan browser/E2E tooling lalu uji alur scan QR sampai struk pada viewport 360 px, tablet, dan desktop; saat ini belum ada `tests/Browser` atau konfigurasi Playwright/Cypress.
+- [ ] Audit aksesibilitas, Core Web Vitals, optimasi gambar, empty/error/loading state, dan koneksi lambat; static accessibility hardening sudah selesai tetapi verifikasi browser-level belum dilakukan.
+- [ ] Rapikan baseline formatting non-source pada `npm run check`; targeted source check dan `npm run types:check` sudah lulus, tetapi full check masih menemukan 127 file tooling/dokumen/source lama.

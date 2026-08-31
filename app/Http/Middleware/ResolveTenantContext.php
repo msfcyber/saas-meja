@@ -86,7 +86,7 @@ class ResolveTenantContext
             ->where('tenant_id', $tenant->getKey())
             ->where('is_active', true);
 
-        if ($tenant->membership?->is_owner !== true) {
+        if ($tenant->membership->is_owner !== true) {
             $query->whereIn('id', $request->user()->assignedOutletsFor($tenant)->select('outlets.id'));
         }
 

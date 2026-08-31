@@ -9,6 +9,7 @@ use App\Http\Resources\OrderResource;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\TaxSetting;
+use App\Services\AnalyticsEventService;
 use App\Services\PaymentCheckoutService;
 use App\Services\PaymentGatewayException;
 use App\Services\PaymentLifecycleService;
@@ -168,6 +169,7 @@ class PublicOrderController extends Controller
         string $accessToken,
         PaymentCheckoutService $payments,
         PaymentLifecycleService $lifecycle,
+        AnalyticsEventService $analytics,
     ): JsonResponse {
         $order = $this->findOrder($accessToken);
 
@@ -190,6 +192,10 @@ class PublicOrderController extends Controller
         } catch (PaymentGatewayException $exception) {
             return response()->json(['message' => $exception->getMessage()], 503);
         }
+
+        $analytics->record('payment_started', (int) $order->tenant_id, (int) $order->outlet_id, [
+            'order_id' => (int) $order->getKey(),
+        ]);
 
         return response()->json($checkout);
     }

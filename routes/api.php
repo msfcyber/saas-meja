@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AnalyticsEventController;
 use App\Http\Controllers\MidtransWebhookController;
 use App\Http\Controllers\PaymentWebhookController;
 use App\Http\Controllers\PublicOrderController;
@@ -13,6 +14,10 @@ Route::post('webhooks/payments/{provider}', PaymentWebhookController::class)
     ->name('payments.webhook');
 
 Route::post('webhooks/midtrans', MidtransWebhookController::class)->name('payments.midtrans.webhook');
+
+Route::post('analytics/events', AnalyticsEventController::class)
+    ->middleware('throttle:qr-public')
+    ->name('analytics.events.store');
 
 Route::middleware('throttle:public-orders')->group(function () {
     Route::post('public/orders', [PublicOrderController::class, 'store'])->name('public.orders.store');
