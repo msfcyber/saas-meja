@@ -2,6 +2,7 @@
 
 use App\Enums\PaymentStatus;
 use App\Enums\SubscriptionStatus;
+use App\Jobs\ReconcilePaymentJob;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
 use App\Models\Subscription;
@@ -30,6 +31,14 @@ Artisan::command('payments:reconcile {--limit=100}', function (PaymentReconcilia
         ->orderBy('id')
         ->limit($limit)
         ->get();
+
+    if (config('queue.default') !== 'sync') {
+        $payments->each(fn (Payment $payment) => ReconcilePaymentJob::dispatch((int) $payment->getKey()));
+        $this->info("Reconciliation diantrekan: {$payments->count()} payment.");
+
+        return 0;
+    }
+
     $processed = 0;
     $failures = 0;
 

@@ -11,6 +11,7 @@ use App\Http\Controllers\ModifierOptionController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OutletController;
+use App\Http\Controllers\PaymentRefundController;
 use App\Http\Controllers\Platform\PlatformDashboardController;
 use App\Http\Controllers\Platform\PlatformManagementController;
 use App\Http\Controllers\ProductAvailabilityController;
@@ -91,9 +92,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('orders', [OrderController::class, 'index'])->middleware('permission:order.view')->name('orders');
         Route::put('orders/notifications', [OrderController::class, 'updateNotificationPreferences'])->middleware('permission:order.view')->name('orders.notifications.update');
         Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->middleware('permission:order.update_status')->name('orders.status.update');
+        Route::post('orders/{order}/refund', [PaymentRefundController::class, 'store'])->middleware('permission:payment.refund')->name('orders.refund');
         Route::get('orders/{order}/receipt', [ReceiptController::class, 'showStaff'])->middleware('permission:payment.view')->name('orders.receipt');
         Route::get('products', [ProductController::class, 'index'])->middleware('permission:menu.manage')->name('products');
         Route::post('products', [ProductController::class, 'store'])->middleware('permission:menu.manage')->name('products.store');
+        Route::patch('products/{product}', [ProductController::class, 'update'])->middleware('permission:menu.manage')->name('products.update');
+        Route::delete('products/{product}', [ProductController::class, 'destroy'])->middleware('permission:menu.manage')->name('products.destroy');
         Route::patch('products/{product}/availability', ProductAvailabilityController::class)->middleware('permission:menu.manage')->name('products.availability.update');
         Route::post('products/{product}/variants', [ProductVariantController::class, 'store'])->middleware('permission:menu.manage')->name('products.variants.store');
         Route::put('products/{product}/modifiers', [ProductModifierController::class, 'update'])->middleware('permission:menu.manage')->name('products.modifiers.update');
@@ -110,6 +114,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('modifier-options/{option}', [ModifierOptionController::class, 'destroy'])->middleware('permission:menu.manage')->name('modifier-options.destroy');
         Route::get('tables', [DiningTableController::class, 'index'])->middleware('permission:table.manage')->name('tables');
         Route::post('tables', [DiningTableController::class, 'store'])->middleware('permission:table.manage')->name('tables.store');
+        Route::patch('tables/{table}', [DiningTableController::class, 'update'])->middleware('permission:table.manage')->name('tables.update');
         Route::post('tables/{table}/regenerate-qr', [TableQrCodeController::class, 'regenerate'])->middleware('permission:table.manage')->name('tables.qr.regenerate');
         Route::post('tables/{table}/revoke-qr', [TableQrCodeController::class, 'revoke'])->middleware('permission:table.manage')->name('tables.qr.revoke');
         Route::get('tables/{table}/qr/download', [TableQrCodeController::class, 'download'])->middleware('permission:table.manage')->name('tables.qr.download');

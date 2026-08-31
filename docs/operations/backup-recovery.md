@@ -40,6 +40,11 @@ OPS_BACKUP_RESTORE_DRILL_ENABLED=true
 OPS_BACKUP_REMOTE_ENABLED=true
 OPS_BACKUP_REMOTE_DISK=s3-backup
 OPS_BACKUP_MYSQL_CREDENTIALS_FILE=/run/secrets/meja-mysql.cnf
+OPS_BACKUP_MYSQL_RESTORE_ENABLED=true
+OPS_BACKUP_MYSQL_RESTORE_CREDENTIALS_FILE=/run/secrets/meja-mysql-restore.cnf
+OPS_BACKUP_MYSQL_RESTORE_HOST=127.0.0.1
+OPS_BACKUP_MYSQL_RESTORE_PORT=3306
+OPS_BACKUP_MYSQL_RESTORE_DATABASE=meja_restore
 ```
 
 When enabled, the Laravel scheduler runs the command daily at 02:00 UTC. A
@@ -49,9 +54,11 @@ configured private filesystem disk and verifies that each remote object exists;
 the local destination remains a staging location.
 
 Verify a backup before relying on it for recovery. The optional restore drill
-copies the database, validates the SQLite database or MySQL gzip stream, and
-extracts the asset archive into an isolated temporary directory, then removes
-the staging data without changing the live application:
+checksums the files, imports a MySQL dump into a disposable database generated
+from `OPS_BACKUP_MYSQL_RESTORE_DATABASE`, probes the restored migrations table,
+and extracts the asset archive into an isolated temporary directory. The
+disposable database is dropped after the drill; the live database is rejected
+as a restore target:
 
 ```sh
 php artisan ops:backup:verify /var/backups/meja/20260830_090324Z --restore-drill
@@ -124,6 +131,10 @@ use the same bucket and prefix.
 
 Restore into a new or isolated environment first. Never overwrite the only
 production copy during an incident response.
+
+The restore drill client option file must be allowed to create and drop only the
+disposable restore databases, not the live application database. Keep it as a
+separate secret from the dump credentials when the infrastructure permits.
 
 1. Put the application into maintenance mode or route traffic away from the
    target instance.

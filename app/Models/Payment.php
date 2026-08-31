@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property PaymentStatus $status
@@ -63,6 +64,12 @@ class Payment extends Model
     public function gatewayCredential(): BelongsTo
     {
         return $this->belongsTo(PaymentGatewayCredential::class, 'gateway_credential_id');
+    }
+
+    /** @return HasMany<PaymentRefund, $this> */
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(PaymentRefund::class);
     }
 
     protected function casts(): array

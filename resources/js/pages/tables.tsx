@@ -3,6 +3,7 @@ import {
     Ban,
     CircleCheck,
     Download,
+    Edit3,
     MapPin,
     Plus,
     Printer,
@@ -53,6 +54,7 @@ type Props = {
 
 export default function Tables({ filters, summary, zones, tables }: Props) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [editingTable, setEditingTable] = useState<DiningTable | null>(null);
     const [processingTableId, setProcessingTableId] = useState<number | null>(
         null,
     );
@@ -77,12 +79,44 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
 
     function createTable(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        form.post('/tables', {
+        const options = {
             onSuccess: () => {
-                form.reset();
-                setIsCreateOpen(false);
+                closeTableForm();
             },
+        };
+
+        if (editingTable) {
+            form.patch(`/tables/${editingTable.id}`, options);
+        } else {
+            form.post('/tables', options);
+        }
+    }
+
+    function openCreateTable() {
+        setEditingTable(null);
+        form.reset();
+        form.clearErrors();
+        setIsCreateOpen(true);
+    }
+
+    function editTable(table: DiningTable) {
+        setEditingTable(table);
+        form.clearErrors();
+        form.setData({
+            name: table.name,
+            code: table.code,
+            zone: table.zone ?? '',
+            capacity: String(table.capacity),
+            is_active: table.is_active,
         });
+        setIsCreateOpen(true);
+    }
+
+    function closeTableForm() {
+        form.reset();
+        form.clearErrors();
+        setEditingTable(null);
+        setIsCreateOpen(false);
     }
 
     function regenerateQr(table: DiningTable) {
@@ -160,7 +194,7 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                     <Button
                         size="lg"
                         className="min-h-12 rounded-xl shadow-[0_14px_30px_-18px_var(--primary)]"
-                        onClick={() => setIsCreateOpen(true)}
+                        onClick={openCreateTable}
                     >
                         <Plus aria-hidden="true" /> Tambah meja
                     </Button>
@@ -356,7 +390,7 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                             <Button
                                 variant="outline"
                                 className="mt-5 min-h-11 rounded-xl"
-                                onClick={() => setIsCreateOpen(true)}
+                                onClick={openCreateTable}
                             >
                                 <Plus aria-hidden="true" /> Tambah meja
                             </Button>
@@ -490,6 +524,13 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                         )}
                                         <div className="mt-2 flex flex-wrap gap-2">
                                             <Button
+                                                variant="outline"
+                                                className="min-h-11 flex-1 rounded-xl"
+                                                onClick={() => editTable(table)}
+                                            >
+                                                <Edit3 aria-hidden="true" /> Ubah meja
+                                            </Button>
+                                            <Button
                                                 variant="secondary"
                                                 className="min-h-11 flex-1 rounded-xl"
                                                 disabled={isProcessing}
@@ -536,18 +577,22 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                     )}
                 </section>
             </div>
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <Dialog
+                open={isCreateOpen}
+                onOpenChange={(open) => (open ? setIsCreateOpen(true) : closeTableForm())}
+            >
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
                         <p className="text-primary text-xs font-bold tracking-[0.16em] uppercase">
                             Inventaris outlet
                         </p>
                         <DialogTitle className="font-display text-2xl">
-                            Tambah meja
+                            {editingTable ? 'Ubah meja' : 'Tambah meja'}
                         </DialogTitle>
                         <DialogDescription>
-                            QR aman akan dibuat otomatis dan dapat langsung
-                            diunduh atau dicetak.
+                            {editingTable
+                                ? 'Perubahan berlaku pada meja ini tanpa mengubah histori order.'
+                                : 'QR aman akan dibuat otomatis dan dapat langsung diunduh atau dicetak.'}
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={createTable} className="grid gap-5">
@@ -656,13 +701,29 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                 />
                             </div>
                         </div>
+                        <Label
+                            htmlFor="table-active"
+                            className="border-border/70 bg-background flex min-h-11 items-center gap-3 rounded-xl border px-3 text-sm"
+                        >
+                            <input
+                                id="table-active"
+                                type="checkbox"
+                                checked={form.data.is_active}
+                                onChange={(event) =>
+                                    form.setData('is_active', event.target.checked)
+                                }
+                                className="accent-primary size-4"
+                            />
+                            Meja aktif dan dapat menerima pesanan
+                        </Label>
                         <DialogFooter className="border-border/70 mt-1 border-t pt-5">
                             <Button
                                 type="submit"
                                 className="min-h-11 rounded-xl"
                                 disabled={form.processing}
                             >
-                                {form.processing && <Spinner />} Tambah meja
+                                {form.processing && <Spinner />}
+                                {editingTable ? 'Simpan perubahan' : 'Tambah meja'}
                             </Button>
                         </DialogFooter>
                     </form>

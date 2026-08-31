@@ -12,5 +12,12 @@ return [
         'mysql_credentials_file' => env('OPS_BACKUP_MYSQL_CREDENTIALS_FILE', '/run/secrets/meja-mysql.cnf'),
         'mysql_dump_binary' => env('OPS_BACKUP_MYSQL_DUMP_BINARY', 'mysqldump'),
         'mysql_dump_timeout' => max(60, (int) env('OPS_BACKUP_MYSQL_DUMP_TIMEOUT', 900)),
+        'mysql_restore_enabled' => (bool) env('OPS_BACKUP_MYSQL_RESTORE_ENABLED', false),
+        'mysql_restore_credentials_file' => env('OPS_BACKUP_MYSQL_RESTORE_CREDENTIALS_FILE', '/run/secrets/meja-mysql-restore.cnf'),
+        'mysql_restore_binary' => env('OPS_BACKUP_MYSQL_RESTORE_BINARY', 'mysql'),
+        'mysql_restore_host' => env('OPS_BACKUP_MYSQL_RESTORE_HOST', '127.0.0.1'),
+        'mysql_restore_port' => env('OPS_BACKUP_MYSQL_RESTORE_PORT', '3306'),
+        'mysql_restore_database' => env('OPS_BACKUP_MYSQL_RESTORE_DATABASE', 'meja_restore'),
+        'mysql_restore_timeout' => max(60, (int) env('OPS_BACKUP_MYSQL_RESTORE_TIMEOUT', 900)),
     ],
 ];

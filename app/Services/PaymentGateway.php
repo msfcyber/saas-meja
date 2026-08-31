@@ -14,4 +14,7 @@ interface PaymentGateway
 
     /** @return array<string, mixed> */
     public function getStatus(Payment $payment): array;
+
+    /** @return array{provider: string, refund_key: string, provider_reference: string|null, response: array<string, mixed>} */
+    public function refund(Payment $payment, int $amount, string $refundKey, string $reason): array;
 }

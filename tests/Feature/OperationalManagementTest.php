@@ -2,6 +2,8 @@
 
 use App\Models\Category;
 use App\Models\DiningTable;
+use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Outlet;
 use App\Models\Permission;
 use App\Models\Product;
@@ -198,4 +200,97 @@ test('product image upload rejects non-image files without storing a file', func
     $response->assertRedirect(route('products'))->assertSessionHasErrors('image');
     expect(Product::query()->count())->toBe(0);
     Storage::disk('public')->assertDirectoryEmpty('tenants');
+});
+
+test('catalog manager can update product details and replace its image', function () {
+    Storage::fake('public');
+    $workspace = createOperationalWorkspace(['menu.manage']);
+    $category = Category::factory()->for($workspace['outlet'])->create(['name' => 'Makanan']);
+    $product = Product::factory()->for($category)->create([
+        'name' => 'Nasi Lama',
+        'image_path' => "tenants/{$workspace['tenant']->id}/outlets/{$workspace['outlet']->id}/products/old.webp",
+    ]);
+    Storage::disk('public')->put($product->image_path, 'old image');
+    $session = ['active_tenant_id' => $workspace['tenant']->id, 'active_outlet_id' => $workspace['outlet']->id];
+
+    $this->actingAs($workspace['user'])->withSession($session)
+        ->post(route('products.update', $product), [
+            '_method' => 'patch',
+            'name' => 'Nasi Baru',
+            'category_id' => $category->id,
+            'description' => 'Dengan sambal segar.',
+            'base_price' => 35000,
+            'image' => UploadedFile::fake()->image('nasi-baru.png', 1200, 800),
+            'is_active' => true,
+            'is_available' => false,
+            'is_featured' => true,
+        ])
+        ->assertRedirect(route('products'));
+
+    $updatedProduct = $product->fresh();
+
+    expect($updatedProduct->name)->toBe('Nasi Baru')
+        ->and($updatedProduct->slug)->toBe('nasi-baru')
+        ->and($updatedProduct->base_price)->toBe(35000)
+        ->and($updatedProduct->is_available)->toBeFalse()
+        ->and($updatedProduct->is_featured)->toBeTrue()
+        ->and($updatedProduct->image_path)->not->toBe($product->getRawOriginal('image_path'));
+    Storage::disk('public')->assertMissing($product->getRawOriginal('image_path'));
+    Storage::disk('public')->assertExists($updatedProduct->image_path);
+});
+
+test('product deletion is scoped and preserves products referenced by orders', function () {
+    $workspace = createOperationalWorkspace(['menu.manage']);
+    $category = Category::factory()->for($workspace['outlet'])->create();
+    $unusedProduct = Product::factory()->for($category)->create();
+    $orderedProduct = Product::factory()->for($category)->create();
+    $table = DiningTable::factory()->for($workspace['outlet'])->create();
+    $order = Order::factory()->for($table, 'table')->create();
+    OrderItem::factory()->for($order)->create(['product_id' => $orderedProduct->id]);
+    $session = ['active_tenant_id' => $workspace['tenant']->id, 'active_outlet_id' => $workspace['outlet']->id];
+
+    $this->actingAs($workspace['user'])->withSession($session)
+        ->delete(route('products.destroy', $unusedProduct))
+        ->assertRedirect(route('products'));
+    $this->assertDatabaseMissing('products', ['id' => $unusedProduct->id]);
+
+    $this->actingAs($workspace['user'])->withSession($session)
+        ->from(route('products'))
+        ->delete(route('products.destroy', $orderedProduct))
+        ->assertRedirect(route('products'))
+        ->assertSessionHasErrors('product');
+    $this->assertDatabaseHas('products', ['id' => $orderedProduct->id]);
+});
+
+test('table manager can update table details and status without crossing outlet scope', function () {
+    $workspace = createOperationalWorkspace(['table.manage']);
+    $otherOutlet = Outlet::factory()->for($workspace['tenant'])->create();
+    $table = DiningTable::factory()->for($workspace['outlet'])->create(['code' => 'TBL-001']);
+    $otherTable = DiningTable::factory()->for($otherOutlet)->create();
+    $session = ['active_tenant_id' => $workspace['tenant']->id, 'active_outlet_id' => $workspace['outlet']->id];
+
+    $this->actingAs($workspace['user'])->withSession($session)
+        ->patch(route('tables.update', $table), [
+            'name' => 'Meja VIP',
+            'code' => 'TBL-001',
+            'zone' => 'Teras',
+            'capacity' => 8,
+            'is_active' => false,
+        ])
+        ->assertRedirect(route('tables'));
+
+    expect($table->fresh()->name)->toBe('Meja VIP')
+        ->and($table->fresh()->zone)->toBe('Teras')
+        ->and($table->fresh()->capacity)->toBe(8)
+        ->and($table->fresh()->is_active)->toBeFalse();
+
+    $this->actingAs($workspace['user'])->withSession($session)
+        ->patch(route('tables.update', $otherTable), [
+            'name' => 'Tidak boleh',
+            'code' => $otherTable->code,
+            'zone' => $otherTable->zone,
+            'capacity' => $otherTable->capacity,
+            'is_active' => false,
+        ])
+        ->assertNotFound();
 });

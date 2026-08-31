@@ -23,12 +23,18 @@ php artisan schedule:work
 ```
 
 Run a worker for the selected queue connection. Production should use Redis
-when queue throughput and Horizon are required:
+for queued reconciliation jobs and retry/backoff handling:
 
 ```dotenv
 QUEUE_CONNECTION=redis
 REDIS_QUEUE=default
 ```
+
+The scheduled `payments:reconcile` command dispatches one
+`ReconcilePaymentJob` per pending payment when the queue connection is not
+`sync`. The job retries transient provider failures three times with 60, 300,
+and 900 second backoff intervals. The `sync` connection is retained for local
+and test determinism.
 
 The current Laravel 13 dependency graph does not have a stable Horizon release
 whose `illuminate/*` constraints include v13. The Docker deployment therefore

@@ -95,6 +95,7 @@ export default function Products({
     summary,
 }: Props) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [isCatalogOpen, setIsCatalogOpen] = useState(false);
     const [catalogTab, setCatalogTab] = useState<'categories' | 'modifiers'>(
         'categories',
@@ -125,10 +126,12 @@ export default function Products({
         category_id: '',
         description: '',
         image: null as File | null,
+        remove_image: false,
         base_price: '',
         is_active: true,
         is_available: true,
         is_featured: false,
+        _method: 'post' as 'post' | 'patch',
     });
     const categoryForm = useForm({
         name: '',
@@ -169,14 +172,46 @@ export default function Products({
         );
     }
 
-    function createProduct(event: React.FormEvent<HTMLFormElement>) {
+    function submitProduct(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        form.post('/products', {
+        form.post(editingProduct ? `/products/${editingProduct.id}` : '/products', {
             onSuccess: () => {
-                form.reset();
-                setIsCreateOpen(false);
+                closeProductForm();
             },
         });
+    }
+
+    function openCreateProduct() {
+        setEditingProduct(null);
+        form.reset();
+        form.clearErrors();
+        form.setData('_method', 'post');
+        setIsCreateOpen(true);
+    }
+
+    function editProduct(product: Product) {
+        setEditingProduct(product);
+        form.clearErrors();
+        form.setData({
+            name: product.name,
+            category_id: product.category ? String(product.category.id) : '',
+            description: product.description ?? '',
+            image: null,
+            remove_image: false,
+            base_price: String(product.base_price),
+            is_active: product.is_active,
+            is_available: product.is_available,
+            is_featured: product.is_featured,
+            _method: 'patch',
+        });
+        setIsCreateOpen(true);
+    }
+
+    function closeProductForm() {
+        form.reset();
+        form.clearErrors();
+        setEditingProduct(null);
+        setIsCreateOpen(false);
     }
 
     function submitCategory(event: React.FormEvent<HTMLFormElement>) {
@@ -416,7 +451,7 @@ export default function Products({
                         <Button
                             size="lg"
                             className="min-h-12 rounded-xl shadow-[0_14px_30px_-18px_var(--primary)]"
-                            onClick={() => setIsCreateOpen(true)}
+                            onClick={openCreateProduct}
                         >
                             <Plus aria-hidden="true" /> Tambah produk
                         </Button>
@@ -643,7 +678,7 @@ export default function Products({
                                     <Button
                                         type="button"
                                         className="min-h-11 rounded-xl"
-                                        onClick={() => setIsCreateOpen(true)}
+                                         onClick={openCreateProduct}
                                     >
                                         <Plus aria-hidden="true" /> Tambah
                                         produk
@@ -728,7 +763,7 @@ export default function Products({
                                             </p>
                                         </div>
 
-                                         <div className="border-border/70 mt-5 flex items-center justify-between gap-3 border-t pt-4">
+                                        <div className="border-border/70 mt-5 flex items-center justify-between gap-3 border-t pt-4">
                                             <div className="min-w-0">
                                                 <p className="text-muted-foreground text-[10px] font-bold tracking-[0.14em] uppercase">
                                                     Ketersediaan
@@ -738,54 +773,78 @@ export default function Products({
                                                         ? 'Tampil dan dapat dipesan di menu QR'
                                                         : 'Tampil sebagai habis di menu QR'}
                                                 </p>
-                                             </div>
-                                             <div className="flex shrink-0 flex-col gap-2">
-                                                 <Button
-                                                     type="button"
-                                                     variant="outline"
-                                                     size="sm"
-                                                     className="min-h-10 rounded-xl text-xs"
-                                                     onClick={() =>
-                                                         openProductConfiguration(
-                                                             product,
-                                                         )
-                                                     }
-                                                 >
-                                                     <Layers3 aria-hidden="true" />
-                                                     Pilihan
-                                                 </Button>
-                                                 <button
-                                                     type="button"
-                                                     onClick={() =>
-                                                         toggleAvailability(product)
-                                                     }
-                                                     disabled={
-                                                         processingProductId !==
-                                                         null
-                                                     }
-                                                     aria-busy={
-                                                         processingProductId ===
-                                                         product.id
-                                                     }
-                                                     aria-pressed={
-                                                         product.is_available
-                                                     }
-                                                     aria-label={`${product.is_available ? 'Tandai habis' : 'Tandai tersedia'}: ${product.name}`}
-                                                     className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-bold transition-colors ${product.is_available ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:border-emerald-400/30 dark:text-emerald-300' : 'border-border bg-muted text-muted-foreground hover:bg-secondary'}`}
-                                                 >
-                                                     <span
-                                                         className={`relative h-6 w-10 rounded-full transition-colors ${product.is_available ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-muted-foreground/30'}`}
-                                                         aria-hidden="true"
-                                                     >
-                                                         <span
-                                                             className={`bg-background absolute top-1 size-4 rounded-full shadow-sm transition-transform ${product.is_available ? 'left-5' : 'left-1'}`}
-                                                         />
-                                                     </span>
-                                                     {product.is_available
-                                                         ? 'Tersedia'
-                                                         : 'Habis'}
-                                                 </button>
-                                             </div>
+                                            </div>
+                                            <div className="flex shrink-0 flex-col gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="min-h-10 rounded-xl text-xs"
+                                                    onClick={() =>
+                                                        openProductConfiguration(
+                                                            product,
+                                                        )
+                                                    }
+                                                >
+                                                    <Layers3 aria-hidden="true" />
+                                                    Pilihan
+                                                </Button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        toggleAvailability(product)
+                                                    }
+                                                    disabled={
+                                                        processingProductId !==
+                                                        null
+                                                    }
+                                                    aria-busy={
+                                                        processingProductId ===
+                                                        product.id
+                                                    }
+                                                    aria-pressed={
+                                                        product.is_available
+                                                    }
+                                                    aria-label={`${product.is_available ? 'Tandai habis' : 'Tandai tersedia'}: ${product.name}`}
+                                                    className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-bold transition-colors ${product.is_available ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:border-emerald-400/30 dark:text-emerald-300' : 'border-border bg-muted text-muted-foreground hover:bg-secondary'}`}
+                                                >
+                                                    <span
+                                                        className={`relative h-6 w-10 rounded-full transition-colors ${product.is_available ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-muted-foreground/30'}`}
+                                                        aria-hidden="true"
+                                                    >
+                                                        <span
+                                                            className={`bg-background absolute top-1 size-4 rounded-full shadow-sm transition-transform ${product.is_available ? 'left-5' : 'left-1'}`}
+                                                        />
+                                                    </span>
+                                                    {product.is_available
+                                                        ? 'Tersedia'
+                                                        : 'Habis'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="border-border/70 mt-4 flex gap-2 border-t pt-4">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="min-h-10 flex-1 rounded-xl text-xs"
+                                                onClick={() => editProduct(product)}
+                                            >
+                                                <Edit3 aria-hidden="true" /> Ubah produk
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                className="text-destructive hover:text-destructive min-h-10 rounded-xl px-3"
+                                                aria-label={`Hapus produk ${product.name}`}
+                                                onClick={() =>
+                                                    removeResource(
+                                                        `/products/${product.id}`,
+                                                        `produk ${product.name}`,
+                                                    )
+                                                }
+                                            >
+                                                <Trash2 aria-hidden="true" />
+                                            </Button>
                                         </div>
                                     </div>
                                 </article>
@@ -1218,21 +1277,25 @@ export default function Products({
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <Dialog
+                open={isCreateOpen}
+                onOpenChange={(open) => (open ? setIsCreateOpen(true) : closeProductForm())}
+            >
                 <DialogContent className="border-border/80 rounded-[1.5rem] p-5 sm:max-w-xl sm:p-7">
                     <DialogHeader className="pr-8">
                         <p className="text-primary text-[10px] font-bold tracking-[0.18em] uppercase">
                             Katalog outlet
                         </p>
                         <DialogTitle className="font-display text-2xl">
-                            Tambah produk
+                            {editingProduct ? 'Ubah produk' : 'Tambah produk'}
                         </DialogTitle>
                         <DialogDescription>
-                            Produk dibuat langsung pada outlet yang sedang
-                            aktif.
+                            {editingProduct
+                                ? 'Perubahan berlaku pada produk di outlet aktif tanpa mengubah histori order.'
+                                : 'Produk dibuat langsung pada outlet yang sedang aktif.'}
                         </DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={createProduct} className="grid gap-5">
+                    <form onSubmit={submitProduct} className="grid gap-5">
                         <div className="grid gap-4 sm:grid-cols-[minmax(0,1.25fr)_minmax(10rem,0.75fr)]">
                             <div className="grid gap-2">
                                 <Label htmlFor="product-name">
@@ -1393,6 +1456,27 @@ export default function Products({
                                 }
                                 className="bg-background min-h-11 cursor-pointer rounded-xl"
                             />
+                            {editingProduct?.image_url && (
+                                <div className="flex items-center gap-3">
+                                    <img
+                                        src={editingProduct.image_url}
+                                        alt={`Foto saat ini: ${editingProduct.name}`}
+                                        className="size-14 rounded-lg object-cover"
+                                    />
+                                    <Label className="flex min-h-10 items-center gap-2 text-xs">
+                                        <Checkbox
+                                            checked={form.data.remove_image}
+                                            onCheckedChange={(checked) =>
+                                                form.setData(
+                                                    'remove_image',
+                                                    checked === true,
+                                                )
+                                            }
+                                        />
+                                        Hapus foto saat ini
+                                    </Label>
+                                </div>
+                            )}
                             <p className="text-muted-foreground text-xs">
                                 JPG, PNG, atau WebP, maksimal 5 MB. Gambar akan
                                 dioptimalkan otomatis.
@@ -1407,29 +1491,61 @@ export default function Products({
                                 </p>
                             )}
                         </div>
-                        <label
-                            htmlFor="product-featured"
-                            className="border-border/70 bg-muted/25 flex min-h-12 items-center gap-3 rounded-xl border px-3 text-sm"
-                        >
-                            <Checkbox
-                                id="product-featured"
-                                checked={form.data.is_featured}
-                                onCheckedChange={(checked) =>
-                                    form.setData(
-                                        'is_featured',
-                                        checked === true,
-                                    )
-                                }
-                            />{' '}
-                            Tandai sebagai produk favorit
-                        </label>
+                        <div className="grid gap-2 sm:grid-cols-3">
+                            <Label
+                                htmlFor="product-active"
+                                className="border-border/70 bg-muted/25 flex min-h-12 items-center gap-3 rounded-xl border px-3 text-sm"
+                            >
+                                <Checkbox
+                                    id="product-active"
+                                    checked={form.data.is_active}
+                                    onCheckedChange={(checked) =>
+                                        form.setData('is_active', checked === true)
+                                    }
+                                />
+                                Produk aktif
+                            </Label>
+                            <Label
+                                htmlFor="product-available"
+                                className="border-border/70 bg-muted/25 flex min-h-12 items-center gap-3 rounded-xl border px-3 text-sm"
+                            >
+                                <Checkbox
+                                    id="product-available"
+                                    checked={form.data.is_available}
+                                    onCheckedChange={(checked) =>
+                                        form.setData(
+                                            'is_available',
+                                            checked === true,
+                                        )
+                                    }
+                                />
+                                Tersedia dipesan
+                            </Label>
+                            <Label
+                                htmlFor="product-featured"
+                                className="border-border/70 bg-muted/25 flex min-h-12 items-center gap-3 rounded-xl border px-3 text-sm"
+                            >
+                                <Checkbox
+                                    id="product-featured"
+                                    checked={form.data.is_featured}
+                                    onCheckedChange={(checked) =>
+                                        form.setData(
+                                            'is_featured',
+                                            checked === true,
+                                        )
+                                    }
+                                />
+                                Produk favorit
+                            </Label>
+                        </div>
                         <DialogFooter className="border-border/70 mt-1 border-t pt-4">
                             <Button
                                 type="submit"
                                 className="min-h-11 rounded-xl"
                                 disabled={form.processing}
                             >
-                                {form.processing && <Spinner />} Tambah produk
+                                {form.processing && <Spinner />}
+                                {editingProduct ? 'Simpan perubahan' : 'Tambah produk'}
                             </Button>
                         </DialogFooter>
                     </form>

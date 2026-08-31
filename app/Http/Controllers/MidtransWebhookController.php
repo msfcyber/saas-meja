@@ -28,6 +28,7 @@ class MidtransWebhookController extends Controller
             'settlement_time' => ['nullable', 'date'],
             'fraud_status' => ['nullable', 'string', 'max:30'],
             'payment_type' => ['nullable', 'string', 'max:50'],
+            'refund_amount' => ['nullable', 'regex:/\A\d+(?:\.00)?\z/'],
         ]);
 
         $isSubscription = str_starts_with((string) $data['order_id'], 'meja-subscription-');

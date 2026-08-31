@@ -1,8 +1,8 @@
 # Production Deployment
 
 The repository includes a reproducible Docker baseline for the production
-topology: PHP-FPM behind Nginx, MySQL, Redis, one queue worker, and one Laravel
-scheduler. Production secrets must be supplied through the deployment secret
+topology: PHP-FPM behind Nginx, MySQL, Redis, one Reverb server, one queue
+worker, and one Laravel scheduler. Production secrets must be supplied through the deployment secret
 manager or an operator-managed `.env`; never commit them.
 
 ## Configuration
@@ -41,11 +41,24 @@ Build the application image, then run migrations once before accepting traffic:
 ```sh
 docker compose build app
 docker compose run --rm app php artisan migrate --force
-docker compose up -d app worker scheduler
+docker compose up -d app reverb worker scheduler
 ```
 
 The web container serves port `8080` internally. Set `APP_PORT` to expose it on
 the host or put an external TLS-terminating load balancer in front of it.
+The Reverb container serves WebSocket traffic on port `8080` and maps to
+`REVERB_EXTERNAL_PORT` on the host. Put the public WebSocket hostname behind the
+TLS-terminating proxy and set the public Reverb values before building the image;
+Compose forwards them as Vite build arguments:
+
+```dotenv
+REVERB_HOST=ws.example.com
+REVERB_EXTERNAL_PORT=443
+REVERB_SCHEME=https
+```
+
+The service container overrides `REVERB_HOST` with its internal Docker hostname,
+while the compiled frontend keeps the public hostname and port.
 
 The frontend build runs Wayfinder generation in a PHP build stage before Vite,
 so a clean CI checkout does not depend on ignored generated route files.
@@ -68,6 +81,13 @@ Horizon only after a compatible release is available and pin that release in
 The scheduler must have exactly one active instance. It runs payment
 reconciliation, payment expiry, subscription expiry, queue monitoring, and any
 enabled backup jobs.
+
+The Reverb process must have exactly one active instance per node unless Redis
+scaling is explicitly configured. Check it with:
+
+```sh
+docker compose logs -f reverb
+```
 
 ## Backup
 

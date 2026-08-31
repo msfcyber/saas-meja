@@ -25,7 +25,7 @@ final class MidtransWebhookService
         $this->verifySignature($data, $this->secret($credential));
         $this->credentials->bind($payment, $credential);
 
-        return $this->process($data);
+        return $this->process($data, $payment);
     }
 
     /**
@@ -44,7 +44,7 @@ final class MidtransWebhookService
 
         $this->credentials->bind($payment, $credential);
 
-        return $this->process($data);
+        return $this->process($data, $payment);
     }
 
     /**
@@ -110,7 +110,7 @@ final class MidtransWebhookService
      * @param  array<string, mixed>  $data
      * @return array{processed: bool, duplicate: bool, payment_id?: int, payment_status?: string, order_status?: string}
      */
-    private function process(array $data): array
+    private function process(array $data, Payment $payment): array
     {
         $orderId = (string) ($data['order_id'] ?? '');
         $grossAmount = (string) ($data['gross_amount'] ?? '');
@@ -133,6 +133,22 @@ final class MidtransWebhookService
         $transactionStatus = (string) ($data['transaction_status'] ?? '');
         $settlementTime = (string) ($data['settlement_time'] ?? '');
         $refundAmount = (string) ($data['refund_amount'] ?? '');
+
+        if (in_array($eventType, ['payment.refunded', 'payment.partially_refunded'], true)) {
+            if (! preg_match('/\A\d+(?:\.00)?\z/', $refundAmount)) {
+                throw ValidationException::withMessages([
+                    'refund_amount' => 'Nominal refund Midtrans tidak valid.',
+                ]);
+            }
+
+            $normalizedRefundAmount = (int) explode('.', $refundAmount)[0];
+
+            if ($normalizedRefundAmount < 1 || $normalizedRefundAmount > (int) $payment->amount) {
+                throw ValidationException::withMessages([
+                    'refund_amount' => 'Nominal refund Midtrans melebihi payment.',
+                ]);
+            }
+        }
 
         return $this->payments->handle('midtrans', [
             'event_id' => 'midtrans-'.hash('sha256', $transactionId.'|'.$transactionStatus.'|'.$settlementTime.'|'.$refundAmount),

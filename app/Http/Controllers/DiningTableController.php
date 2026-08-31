@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Tables\StoreDiningTableRequest;
+use App\Http\Requests\Tables\UpdateDiningTableRequest;
 use App\Models\DiningTable;
 use App\Services\SubscriptionEntitlementService;
 use App\Services\TableQrCodeService;
@@ -87,5 +88,13 @@ class DiningTableController extends Controller
         }, attempts: 3);
 
         return to_route('tables')->with('success', 'Meja berhasil ditambahkan dengan QR aktif.');
+    }
+
+    public function update(UpdateDiningTableRequest $request, DiningTable $table): RedirectResponse
+    {
+        $this->authorize('update', $table);
+        $table->update($request->validated());
+
+        return to_route('tables')->with('success', 'Data meja berhasil diperbarui.');
     }
 }

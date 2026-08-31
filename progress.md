@@ -11,8 +11,8 @@ Terakhir diperbarui: 31 Agustus 2026
 - [x] Tracking order demo: status aktif, timeline, estimasi, detail item, dan akses struk.
 - [x] Dashboard owner: metrik outlet, grafik penjualan, target, dan order terkini.
 - [x] Live order board: filter status, detail item, dan transisi status order berbasis database.
-- [x] Pengelolaan produk: kategori, pencarian, harga, status tersedia/habis, dan aksi produk.
-- [x] Pengelolaan meja: zona, status, pratinjau QR, download, cetak, dan regenerasi.
+- [x] Pengelolaan produk: kategori, pencarian, harga, status tersedia/habis, dan aksi produk; create, update, delete, availability, varian, modifier, serta lifecycle gambar sudah tersedia.
+- [x] Pengelolaan meja: zona, status, pratinjau QR, download, cetak, dan regenerasi; create, update, toggle status, dan aksi QR sudah tersedia.
 - [x] Pengelolaan outlet: identitas lokasi, status aktif/order, zona waktu, pajak default, dan limit plan.
 - [x] Pengelolaan staf: membership tenant, role operasional, status aktif, audit, dan proteksi owner.
 - [x] Branding dan lokalisasi halaman login/register utama.
@@ -57,7 +57,7 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 
 - [x] Dashboard server-rendered dengan identitas outlet, status penerimaan order, ringkasan order/penjualan hari ini, dan kesiapan katalog/meja aktual.
 - [x] Produk dan meja server-rendered, difilter oleh outlet aktif, dengan empty state yang jujur.
-- [x] Form Request untuk tambah produk/meja dan perubahan ketersediaan produk.
+- [x] Form Request untuk tambah, ubah, dan hapus produk/meja serta perubahan ketersediaan produk dan status meja.
 - [x] Order board server-rendered dengan filter, pencarian, detail snapshot item, policy, dan aksi transisi status.
 - [x] Ownership data selalu berasal dari tenant/outlet context; policy resource kini memeriksa kedua scope.
 - [x] Feature test props Inertia, isolasi outlet, forged ownership, validasi kategori/kode, dan toggle ketersediaan.
@@ -98,7 +98,7 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Lengkapi halaman dan action superadmin untuk tenant, paket/harga, subscription, dan pembatalan invoice pending; semua perubahan menulis audit log.
 - [x] Implementasikan event analytics minimum, privacy-safe hashing, validasi QR/product, tracking customer web, dan dashboard funnel 30 hari.
 - [x] Selaraskan baseline produksi dengan MySQL, Redis queue worker, S3-compatible public storage, dan deployment Docker/Nginx/PHP-FPM; Horizon menunggu rilis kompatibel Laravel 13.
-- [x] Hubungkan backup produksi ke mysqldump/gzip, asset disk, storage S3 private terenkripsi, checksum, dan restore drill terisolasi; validasi database produksi tetap memerlukan target recovery operator.
+- [x] Hubungkan backup produksi ke mysqldump/gzip, asset disk, storage S3 private terenkripsi, checksum, dan restore drill SQLite terisolasi; restore drill MySQL nyata tetap memerlukan target recovery operator.
 
 ## Task Berikutnya - Backend Foundation
 
@@ -124,6 +124,7 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Buat payment adapter dan integrasi sandbox gateway Indonesia.
 - [x] Implementasikan kontrak webhook generik dengan signature bertimestamp, idempotency event, nominal/currency verification, expiry, dan proteksi downgrade.
 - [x] Tambahkan adapter vendor, retry, dan reconciliation gateway.
+- [x] Tambahkan queued reconciliation job dengan retry/backoff serta command dispatch yang tetap synchronous pada environment test/local.
 - [x] Pastikan order hanya masuk produksi setelah payment terverifikasi `paid`.
 - [x] Buat struk digital dari snapshot order dan dukungan print/download.
 - [x] Implementasikan plan, trial, subscription, invoice SaaS, entitlement, owner billing Midtrans, dan limit meja.
@@ -137,6 +138,27 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Tambahkan backup verification dan isolated restore drill untuk SQLite.
 - [x] Tambahkan opt-in quarterly restore drill untuk backup SQLite terbaru.
 
+## Audit Gap PRD - 31 Agustus 2026 (Status Terkini)
+
+- [x] Lengkapi product CRUD untuk mengubah atau menghapus nama, harga, deskripsi, kategori, foto, dan flag produk dengan policy serta isolasi outlet.
+- [x] Lengkapi table management untuk mengubah nama/kode/zona/kapasitas dan mengaktifkan/menonaktifkan meja dengan policy serta isolasi outlet.
+- [x] Sediakan action refund manual penuh yang dilindungi permission `payment.refund`, idempotency key, audit log, state lokal, dan gateway Midtrans. Refund parsial/lintas gateway tetap di luar MVP.
+- [x] Gunakan background job Redis untuk reconciliation payment dengan retry/backoff; worker Docker serta queue monitoring tersedia. Flow notifikasi/laporan tambahan tetap dapat dipecah menjadi job berikutnya bila diperlukan.
+- [x] Jalankan server Reverb pada deployment produksi melalui service `reverb` di `docker-compose.yml`; runtime deployment dan TLS masih menunggu environment Docker.
+- [ ] Jalankan restore drill MySQL nyata pada target terisolasi dan catat RPO/RTO; implementasi import `mysql` ke database disposable sudah tersedia, tetapi target recovery nyata belum dapat diverifikasi.
+
+## Verifikasi Terakhir
+
+- [x] `php artisan test --compact`: 176 test lulus, 1.378 assertion; termasuk full flow ordering/payment, auth, SaaS, reports, backup, analytics, observability, CRUD operasional, refund, dan queue reconciliation.
+- [x] `composer run lint:check`: Pint lulus.
+- [x] `composer run types:check`: PHPStan lulus tanpa error.
+- [x] `npm run types:check`: TypeScript lulus.
+- [x] `npm run build`: build produksi lulus; hanya ada warning opsional package `fontaine`.
+- [x] `php artisan migrate --force`: seluruh migration lokal, termasuk refund, Google identity, dan analytics, sudah diterapkan.
+- [x] Dependency lokal disinkronkan melalui `composer install`; `laravel/socialite` v5.30.1 sebelumnya ada di lockfile tetapi belum terpasang di `vendor`.
+- [ ] `npm run check`: masih menemukan formatting pada 128 file tooling/dokumen/source lama; tidak dijalankan `--fix` agar tidak mengubah file di luar scope audit.
+- [ ] `docker compose config --quiet` dan runtime Compose: Docker CLI tidak tersedia pada environment ini.
+
 ## Quality Gate Berikutnya
 
 - [x] Foundation test untuk relasi model, constraint lintas tenant, permission owner, dan seeder idempotent.
@@ -149,6 +171,8 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Feature test akses platform dan agregasi tenant lintas konteks.
 - [x] Feature test propagation correlation ID dan korelasi audit request.
 - [x] Feature test structured telemetry, redaction atribut, dan health threshold.
+- [x] Feature test CRUD produk/meja, lifecycle gambar, refund penuh idempotent/failure/permission, dan queued reconciliation.
 - [ ] Sediakan browser/E2E tooling lalu uji alur scan QR sampai struk pada viewport 360 px, tablet, dan desktop; saat ini belum ada `tests/Browser` atau konfigurasi Playwright/Cypress.
 - [ ] Audit aksesibilitas, Core Web Vitals, optimasi gambar, empty/error/loading state, dan koneksi lambat; static accessibility hardening sudah selesai tetapi verifikasi browser-level belum dilakukan.
-- [ ] Rapikan baseline formatting non-source pada `npm run check`; targeted source check dan `npm run types:check` sudah lulus, tetapi full check masih menemukan 127 file tooling/dokumen/source lama.
+- [ ] Rapikan baseline formatting non-source pada `npm run check`; targeted source check dan `npm run types:check` sudah lulus, tetapi full check masih menemukan 128 file tooling/dokumen/source lama.
+- [ ] Jalankan validasi runtime Docker untuk Compose, Reverb, Redis worker, dan MySQL restore drill pada target disposable.

@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Catalog\StoreProductRequest;
+use App\Http\Requests\Catalog\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\Modifier;
 use App\Models\ModifierOption;
+use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Support\Tenancy\TenantContext;
@@ -131,12 +133,81 @@ class ProductController extends Controller
         return to_route('products')->with('success', 'Produk berhasil ditambahkan.');
     }
 
-    private function uniqueSlug(string $baseSlug): string
+    public function update(
+        UpdateProductRequest $request,
+        Product $product,
+        TenantContext $context,
+    ): RedirectResponse {
+        $this->authorize('update', $product);
+
+        $attributes = Arr::except($request->validated(), ['image', 'remove_image']);
+        $oldImagePath = $product->image_path;
+        $newImagePath = null;
+
+        if ($request->hasFile('image')) {
+            $newImagePath = $this->storeImage($request, $context);
+            $attributes['image_path'] = $newImagePath;
+        } elseif ($request->boolean('remove_image')) {
+            $attributes['image_path'] = null;
+        }
+
+        try {
+            DB::transaction(function () use ($attributes, $product): void {
+                $product->update([
+                    ...$attributes,
+                    'slug' => $this->uniqueSlug(Str::slug((string) $attributes['name']) ?: 'produk', $product),
+                ]);
+            }, attempts: 3);
+        } catch (Throwable $exception) {
+            if ($newImagePath !== null) {
+                Storage::disk('public')->delete($newImagePath);
+            }
+
+            throw $exception;
+        }
+
+        if (($newImagePath !== null || $request->boolean('remove_image'))
+            && $oldImagePath !== null
+            && $oldImagePath !== $newImagePath) {
+            Storage::disk('public')->delete($oldImagePath);
+        }
+
+        return to_route('products')->with('success', 'Produk berhasil diperbarui.');
+    }
+
+    public function destroy(Product $product): RedirectResponse
+    {
+        $this->authorize('delete', $product);
+
+        if (OrderItem::withoutGlobalScopes()
+            ->where('tenant_id', $product->tenant_id)
+            ->where('outlet_id', $product->outlet_id)
+            ->where('product_id', $product->getKey())
+            ->exists()) {
+            return back()->withErrors([
+                'product' => 'Produk sudah tercatat pada order dan tidak dapat dihapus. Tandai produk sebagai nonaktif.',
+            ]);
+        }
+
+        $imagePath = $product->image_path;
+        $product->delete();
+
+        if ($imagePath !== null) {
+            Storage::disk('public')->delete($imagePath);
+        }
+
+        return to_route('products')->with('success', 'Produk berhasil dihapus.');
+    }
+
+    private function uniqueSlug(string $baseSlug, ?Product $ignore = null): string
     {
         $slug = $baseSlug;
         $suffix = 2;
 
-        while (Product::query()->where('slug', $slug)->exists()) {
+        while (Product::query()
+            ->where('slug', $slug)
+            ->when($ignore !== null, fn ($query) => $query->whereKeyNot($ignore))
+            ->exists()) {
             $slug = "{$baseSlug}-{$suffix}";
             $suffix++;
         }

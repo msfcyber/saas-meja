@@ -140,6 +140,56 @@ final class MidtransPaymentGateway implements PaymentGateway
         return $response;
     }
 
+    /** @return array{provider: string, refund_key: string, provider_reference: string|null, response: array<string, mixed>} */
+    public function refund(Payment $payment, int $amount, string $refundKey, string $reason): array
+    {
+        $serverKey = $this->serverKey($payment);
+        $providerReference = (string) $payment->provider_reference;
+
+        if ($providerReference === '') {
+            throw new PaymentGatewayException('Referensi payment Midtrans tidak tersedia.');
+        }
+
+        if ($payment->currency !== 'IDR') {
+            throw new PaymentGatewayException('Midtrans refund saat ini hanya mendukung payment IDR.');
+        }
+
+        $url = rtrim((string) config('payments.midtrans.refund_url'), '/').'/'.rawurlencode($providerReference).'/refund';
+
+        try {
+            $response = Http::acceptJson()
+                ->withBasicAuth($serverKey, '')
+                ->retry([250, 750])
+                ->timeout(10)
+                ->post($url, [
+                    'refund_key' => $refundKey,
+                    'amount' => $amount,
+                    'reason' => $reason,
+                ])
+                ->throw()
+                ->json();
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            throw new PaymentGatewayException('Refund Midtrans belum dapat diproses.', previous: $exception);
+        }
+
+        if (! is_array($response) || (string) ($response['status_code'] ?? '') !== '200') {
+            throw new PaymentGatewayException('Respons refund Midtrans tidak valid.');
+        }
+
+        $providerRefundReference = $response['refund_chargeback_id'] ?? $response['id'] ?? null;
+
+        return [
+            'provider' => 'midtrans',
+            'refund_key' => $refundKey,
+            'provider_reference' => is_string($providerRefundReference) || is_int($providerRefundReference)
+                ? (string) $providerRefundReference
+                : null,
+            'response' => $response,
+        ];
+    }
+
     private function serverKey(Payment $payment): string
     {
         $credential = $this->credentials->forPayment($payment);

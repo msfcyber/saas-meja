@@ -339,6 +339,21 @@ final class BackupService
 
     private function runRestoreDrill(string $databasePath, string $archivePath): void
     {
+        if (str_ends_with($databasePath, '.sql.gz')) {
+            $this->runMysqlRestoreDrill($databasePath);
+
+            $staging = sys_get_temp_dir().DIRECTORY_SEPARATOR.'meja-restore-'.Str::lower(Str::random(12));
+            $this->ensureDirectory($staging);
+
+            try {
+                $this->verifyArchive($archivePath, $staging.DIRECTORY_SEPARATOR.'storage-app-public');
+            } finally {
+                File::deleteDirectory($staging);
+            }
+
+            return;
+        }
+
         $staging = sys_get_temp_dir().DIRECTORY_SEPARATOR.'meja-restore-'.Str::lower(Str::random(12));
         $this->ensureDirectory($staging);
 
@@ -353,6 +368,111 @@ final class BackupService
             $this->verifyArchive($archivePath, $staging.DIRECTORY_SEPARATOR.'storage-app-public');
         } finally {
             File::deleteDirectory($staging);
+        }
+    }
+
+    private function runMysqlRestoreDrill(string $databasePath): void
+    {
+        if (! (bool) config('operations.backup.mysql_restore_enabled', false)) {
+            throw new RuntimeException('MySQL restore drill belum diaktifkan.');
+        }
+
+        $credentialsFile = (string) config('operations.backup.mysql_restore_credentials_file');
+        $baseDatabase = trim((string) config('operations.backup.mysql_restore_database'));
+        $host = (string) config('operations.backup.mysql_restore_host', '127.0.0.1');
+        $port = (string) config('operations.backup.mysql_restore_port', '3306');
+        $binary = (string) config('operations.backup.mysql_restore_binary', 'mysql');
+        $timeout = (float) config('operations.backup.mysql_restore_timeout', 900);
+
+        if (! is_file($credentialsFile)
+            || preg_match('/\A[A-Za-z0-9_]+\z/D', $baseDatabase) !== 1
+            || $host === ''
+            || $port === '') {
+            throw new RuntimeException('Konfigurasi target restore MySQL tidak valid.');
+        }
+
+        $suffix = basename(dirname($databasePath));
+        $suffix = preg_replace('/[^A-Za-z0-9_]/', '_', $suffix) ?: Str::lower(Str::random(8));
+        $targetDatabase = substr($baseDatabase.'_'.strtolower($suffix), 0, 64);
+        $sourceConfig = DB::connection()->getConfig();
+        $sourceDatabase = (string) ($sourceConfig['database'] ?? '');
+
+        if ($targetDatabase === $sourceDatabase && $host === (string) ($sourceConfig['host'] ?? '')) {
+            throw new RuntimeException('Target restore MySQL tidak boleh sama dengan database aplikasi.');
+        }
+
+        $created = false;
+
+        try {
+            $this->runMysqlClient([
+                $binary,
+                '--defaults-extra-file='.$credentialsFile,
+                '--host='.$host,
+                '--port='.$port,
+                '--batch',
+                '--skip-column-names',
+                '-e',
+                'CREATE DATABASE `'.$targetDatabase.'`',
+            ], $timeout);
+            $created = true;
+
+            $stream = gzopen($databasePath, 'rb');
+
+            if ($stream === false) {
+                throw new RuntimeException('Archive database MySQL tidak dapat dibuka untuk restore.');
+            }
+
+            try {
+                $this->runMysqlClient([
+                    $binary,
+                    '--defaults-extra-file='.$credentialsFile,
+                    '--host='.$host,
+                    '--port='.$port,
+                    '--database='.$targetDatabase,
+                ], $timeout, $stream);
+            } finally {
+                gzclose($stream);
+            }
+
+            $this->runMysqlClient([
+                $binary,
+                '--defaults-extra-file='.$credentialsFile,
+                '--host='.$host,
+                '--port='.$port,
+                '--database='.$targetDatabase,
+                '--batch',
+                '--skip-column-names',
+                '-e',
+                'SELECT COUNT(*) FROM migrations',
+            ], $timeout);
+        } finally {
+            if ($created) {
+                $this->runMysqlClient([
+                    $binary,
+                    '--defaults-extra-file='.$credentialsFile,
+                    '--host='.$host,
+                    '--port='.$port,
+                    '--batch',
+                    '--skip-column-names',
+                    '-e',
+                    'DROP DATABASE `'.$targetDatabase.'`',
+                ], $timeout);
+            }
+        }
+    }
+
+    /** @param list<string> $command */
+    private function runMysqlClient(array $command, float $timeout, mixed $input = null): void
+    {
+        $process = new Process($command, base_path());
+        $process->setTimeout($timeout);
+
+        if ($input !== null) {
+            $process->setInput($input);
+        }
+
+        if ($process->run() !== 0) {
+            throw new RuntimeException('Restore drill MySQL gagal dijalankan.');
         }
     }
 

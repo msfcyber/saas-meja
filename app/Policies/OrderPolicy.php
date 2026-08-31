@@ -17,4 +17,10 @@ class OrderPolicy extends TenantResourcePolicy
         return $this->belongsToContext($order)
             && $this->hasPermissionInContext($user, 'order.update_status');
     }
+
+    public function refund(User $user, Order $order): bool
+    {
+        return $this->belongsToContext($order)
+            && $this->hasPermissionInContext($user, 'payment.refund');
+    }
 }

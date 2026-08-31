@@ -13,7 +13,11 @@ class StoreProductRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('create', Product::class) ?? false;
+        $product = $this->route('product');
+
+        return $product instanceof Product
+            ? ($this->user()?->can('update', $product) ?? false)
+            : ($this->user()?->can('create', Product::class) ?? false);
     }
 
     /** @return array<string, mixed> */
@@ -28,6 +32,7 @@ class StoreProductRequest extends FormRequest
             'is_active' => ['required', 'boolean'],
             'is_available' => ['required', 'boolean'],
             'is_featured' => ['required', 'boolean'],
+            'remove_image' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -37,6 +42,7 @@ class StoreProductRequest extends FormRequest
             'is_active' => $this->boolean('is_active'),
             'is_available' => $this->boolean('is_available'),
             'is_featured' => $this->boolean('is_featured'),
+            'remove_image' => $this->boolean('remove_image'),
         ]);
     }
 }

@@ -11,7 +11,11 @@ class StoreDiningTableRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('create', DiningTable::class) ?? false;
+        $table = $this->route('table');
+
+        return $table instanceof DiningTable
+            ? ($this->user()?->can('update', $table) ?? false)
+            : ($this->user()?->can('create', DiningTable::class) ?? false);
     }
 
     /** @return array<string, mixed> */
@@ -19,7 +23,15 @@ class StoreDiningTableRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:100'],
-            'code' => ['required', 'string', 'max:30', Rule::unique(DiningTable::class, 'code')->where('tenant_id', $context->tenantId())->where('outlet_id', $context->outletId())],
+            'code' => [
+                'required',
+                'string',
+                'max:30',
+                Rule::unique(DiningTable::class, 'code')
+                    ->where('tenant_id', $context->tenantId())
+                    ->where('outlet_id', $context->outletId())
+                    ->ignore($this->route('table')),
+            ],
             'zone' => ['nullable', 'string', 'max:100'],
             'capacity' => ['required', 'integer', 'min:1', 'max:100'],
             'is_active' => ['required', 'boolean'],
