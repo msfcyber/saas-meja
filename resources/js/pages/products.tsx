@@ -112,9 +112,9 @@ export default function Products({
     const [editingOption, setEditingOption] = useState<ModifierOption | null>(
         null,
     );
-    const [configuredProductId, setConfiguredProductId] = useState<number | null>(
-        null,
-    );
+    const [configuredProductId, setConfiguredProductId] = useState<
+        number | null
+    >(null);
     const [editingVariant, setEditingVariant] = useState<Variant | null>(null);
     const [modifierIds, setModifierIds] = useState<number[]>([]);
     const [processingProductId, setProcessingProductId] = useState<
@@ -174,11 +174,14 @@ export default function Products({
 
     function submitProduct(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        form.post(editingProduct ? `/products/${editingProduct.id}` : '/products', {
-            onSuccess: () => {
-                closeProductForm();
+        form.post(
+            editingProduct ? `/products/${editingProduct.id}` : '/products',
+            {
+                onSuccess: () => {
+                    closeProductForm();
+                },
             },
-        });
+        );
     }
 
     function openCreateProduct() {
@@ -330,7 +333,10 @@ export default function Products({
         };
 
         if (editingVariant) {
-            variantForm.patch(`/product-variants/${editingVariant.id}`, options);
+            variantForm.patch(
+                `/product-variants/${editingVariant.id}`,
+                options,
+            );
         } else {
             variantForm.post(
                 `/products/${configuredProduct.id}/variants`,
@@ -371,7 +377,11 @@ export default function Products({
     }
 
     function removeResource(url: string, name: string) {
-        if (!window.confirm(`Hapus ${name}? Tindakan ini tidak dapat dibatalkan.`)) {
+        if (
+            !window.confirm(
+                `Hapus ${name}? Tindakan ini tidak dapat dibatalkan.`,
+            )
+        ) {
             return;
         }
 
@@ -678,7 +688,7 @@ export default function Products({
                                     <Button
                                         type="button"
                                         className="min-h-11 rounded-xl"
-                                         onClick={openCreateProduct}
+                                        onClick={openCreateProduct}
                                     >
                                         <Plus aria-hidden="true" /> Tambah
                                         produk
@@ -792,7 +802,9 @@ export default function Products({
                                                 <button
                                                     type="button"
                                                     onClick={() =>
-                                                        toggleAvailability(product)
+                                                        toggleAvailability(
+                                                            product,
+                                                        )
                                                     }
                                                     disabled={
                                                         processingProductId !==
@@ -827,9 +839,12 @@ export default function Products({
                                                 type="button"
                                                 variant="outline"
                                                 className="min-h-10 flex-1 rounded-xl text-xs"
-                                                onClick={() => editProduct(product)}
+                                                onClick={() =>
+                                                    editProduct(product)
+                                                }
                                             >
-                                                <Edit3 aria-hidden="true" /> Ubah produk
+                                                <Edit3 aria-hidden="true" />{' '}
+                                                Ubah produk
                                             </Button>
                                             <Button
                                                 type="button"
@@ -885,7 +900,9 @@ export default function Products({
                             type="button"
                             size="sm"
                             variant={
-                                catalogTab === 'modifiers' ? 'secondary' : 'ghost'
+                                catalogTab === 'modifiers'
+                                    ? 'secondary'
+                                    : 'ghost'
                             }
                             className="min-h-10 rounded-lg"
                             onClick={() => setCatalogTab('modifiers')}
@@ -922,7 +939,9 @@ export default function Products({
                                 </div>
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <div className="grid gap-2">
-                                        <Label htmlFor="category-name">Nama</Label>
+                                        <Label htmlFor="category-name">
+                                            Nama
+                                        </Label>
                                         <Input
                                             id="category-name"
                                             value={categoryForm.data.name}
@@ -942,10 +961,15 @@ export default function Products({
                                             message={categoryForm.errors.name}
                                         />
                                     </div>
-                                    <Label htmlFor="category-active" className="border-border/70 bg-background flex min-h-11 items-center gap-3 self-end rounded-xl border px-3 text-sm">
+                                    <Label
+                                        htmlFor="category-active"
+                                        className="border-border/70 bg-background flex min-h-11 items-center gap-3 self-end rounded-xl border px-3 text-sm"
+                                    >
                                         <Checkbox
                                             id="category-active"
-                                            checked={categoryForm.data.is_active}
+                                            checked={
+                                                categoryForm.data.is_active
+                                            }
                                             onCheckedChange={(checked) =>
                                                 categoryForm.setData(
                                                     'is_active',
@@ -958,7 +982,10 @@ export default function Products({
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="category-description">
-                                        Deskripsi <span className="text-muted-foreground font-normal">(opsional)</span>
+                                        Deskripsi{' '}
+                                        <span className="text-muted-foreground font-normal">
+                                            (opsional)
+                                        </span>
                                     </Label>
                                     <textarea
                                         id="category-description"
@@ -972,7 +999,9 @@ export default function Products({
                                         className="border-input focus-visible:border-ring focus-visible:ring-ring/50 min-h-20 w-full rounded-xl border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-[3px]"
                                     />
                                     <InputError
-                                        message={categoryForm.errors.description}
+                                        message={
+                                            categoryForm.errors.description
+                                        }
                                     />
                                 </div>
                                 <Button
@@ -981,7 +1010,9 @@ export default function Products({
                                     disabled={categoryForm.processing}
                                 >
                                     {categoryForm.processing && <Spinner />}
-                                    {editingCategory ? 'Simpan kategori' : 'Tambah kategori'}
+                                    {editingCategory
+                                        ? 'Simpan kategori'
+                                        : 'Tambah kategori'}
                                 </Button>
                             </form>
                             <div className="grid gap-2">
@@ -991,10 +1022,15 @@ export default function Products({
                                         className="border-border/70 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"
                                     >
                                         <div>
-                                            <p className="font-semibold">{category.name}</p>
+                                            <p className="font-semibold">
+                                                {category.name}
+                                            </p>
                                             <p className="text-muted-foreground text-xs">
-                                                {category.products_count} produk ·{' '}
-                                                {category.is_active ? 'Aktif' : 'Nonaktif'}
+                                                {category.products_count} produk
+                                                ·{' '}
+                                                {category.is_active
+                                                    ? 'Aktif'
+                                                    : 'Nonaktif'}
                                             </p>
                                         </div>
                                         <div className="flex gap-1">
@@ -1004,7 +1040,9 @@ export default function Products({
                                                 size="icon"
                                                 className="min-h-10 min-w-10"
                                                 aria-label={`Ubah kategori ${category.name}`}
-                                                onClick={() => editCategory(category)}
+                                                onClick={() =>
+                                                    editCategory(category)
+                                                }
                                             >
                                                 <Edit3 aria-hidden="true" />
                                             </Button>
@@ -1056,7 +1094,9 @@ export default function Products({
                                 </div>
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <div className="grid gap-2">
-                                        <Label htmlFor="modifier-name">Nama</Label>
+                                        <Label htmlFor="modifier-name">
+                                            Nama
+                                        </Label>
                                         <Input
                                             id="modifier-name"
                                             value={modifierForm.data.name}
@@ -1074,10 +1114,14 @@ export default function Products({
                                         />
                                     </div>
                                     <div className="grid gap-2">
-                                        <Label htmlFor="modifier-type">Tipe pilihan</Label>
+                                        <Label htmlFor="modifier-type">
+                                            Tipe pilihan
+                                        </Label>
                                         <select
                                             id="modifier-type"
-                                            value={modifierForm.data.selection_type}
+                                            value={
+                                                modifierForm.data.selection_type
+                                            }
                                             onChange={(event) =>
                                                 modifierForm.setData(
                                                     'selection_type',
@@ -1088,19 +1132,28 @@ export default function Products({
                                             }
                                             className="border-input bg-background min-h-11 rounded-xl border px-3 text-sm"
                                         >
-                                            <option value="single">Satu pilihan</option>
-                                            <option value="multiple">Banyak pilihan</option>
+                                            <option value="single">
+                                                Satu pilihan
+                                            </option>
+                                            <option value="multiple">
+                                                Banyak pilihan
+                                            </option>
                                         </select>
                                     </div>
                                 </div>
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <div className="grid gap-2">
-                                        <Label htmlFor="modifier-minimum">Minimum</Label>
+                                        <Label htmlFor="modifier-minimum">
+                                            Minimum
+                                        </Label>
                                         <Input
                                             id="modifier-minimum"
                                             type="number"
                                             min="0"
-                                            value={modifierForm.data.minimum_selections}
+                                            value={
+                                                modifierForm.data
+                                                    .minimum_selections
+                                            }
                                             onChange={(event) =>
                                                 modifierForm.setData(
                                                     'minimum_selections',
@@ -1110,16 +1163,31 @@ export default function Products({
                                             className="min-h-11 rounded-xl"
                                             required
                                         />
-                                        <InputError message={modifierForm.errors.minimum_selections} />
+                                        <InputError
+                                            message={
+                                                modifierForm.errors
+                                                    .minimum_selections
+                                            }
+                                        />
                                     </div>
                                     <div className="grid gap-2">
-                                        <Label htmlFor="modifier-maximum">Maksimum</Label>
+                                        <Label htmlFor="modifier-maximum">
+                                            Maksimum
+                                        </Label>
                                         <Input
                                             id="modifier-maximum"
                                             type="number"
                                             min="1"
-                                            max={modifierForm.data.selection_type === 'single' ? '1' : undefined}
-                                            value={modifierForm.data.maximum_selections}
+                                            max={
+                                                modifierForm.data
+                                                    .selection_type === 'single'
+                                                    ? '1'
+                                                    : undefined
+                                            }
+                                            value={
+                                                modifierForm.data
+                                                    .maximum_selections
+                                            }
                                             onChange={(event) =>
                                                 modifierForm.setData(
                                                     'maximum_selections',
@@ -1129,14 +1197,24 @@ export default function Products({
                                             className="min-h-11 rounded-xl"
                                             required
                                         />
-                                        <InputError message={modifierForm.errors.maximum_selections} />
+                                        <InputError
+                                            message={
+                                                modifierForm.errors
+                                                    .maximum_selections
+                                            }
+                                        />
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap gap-3">
-                                    <Label htmlFor="modifier-required" className="border-border/70 bg-background flex min-h-11 items-center gap-3 rounded-xl border px-3 text-sm">
+                                    <Label
+                                        htmlFor="modifier-required"
+                                        className="border-border/70 bg-background flex min-h-11 items-center gap-3 rounded-xl border px-3 text-sm"
+                                    >
                                         <Checkbox
                                             id="modifier-required"
-                                            checked={modifierForm.data.is_required}
+                                            checked={
+                                                modifierForm.data.is_required
+                                            }
                                             onCheckedChange={(checked) =>
                                                 modifierForm.setData(
                                                     'is_required',
@@ -1146,10 +1224,15 @@ export default function Products({
                                         />
                                         Wajib dipilih
                                     </Label>
-                                    <Label htmlFor="modifier-active" className="border-border/70 bg-background flex min-h-11 items-center gap-3 rounded-xl border px-3 text-sm">
+                                    <Label
+                                        htmlFor="modifier-active"
+                                        className="border-border/70 bg-background flex min-h-11 items-center gap-3 rounded-xl border px-3 text-sm"
+                                    >
                                         <Checkbox
                                             id="modifier-active"
-                                            checked={modifierForm.data.is_active}
+                                            checked={
+                                                modifierForm.data.is_active
+                                            }
                                             onCheckedChange={(checked) =>
                                                 modifierForm.setData(
                                                     'is_active',
@@ -1166,7 +1249,9 @@ export default function Products({
                                     disabled={modifierForm.processing}
                                 >
                                     {modifierForm.processing && <Spinner />}
-                                    {editingModifier ? 'Simpan modifier' : 'Tambah modifier'}
+                                    {editingModifier
+                                        ? 'Simpan modifier'
+                                        : 'Tambah modifier'}
                                 </Button>
                             </form>
                             <div className="grid gap-2">
@@ -1176,19 +1261,56 @@ export default function Products({
                                         className="border-border/70 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"
                                     >
                                         <div>
-                                            <p className="font-semibold">{modifier.name}</p>
+                                            <p className="font-semibold">
+                                                {modifier.name}
+                                            </p>
                                             <p className="text-muted-foreground text-xs">
-                                                {modifier.selection_type === 'single' ? 'Satu pilihan' : 'Banyak pilihan'} · {modifier.options.length} opsi
+                                                {modifier.selection_type ===
+                                                'single'
+                                                    ? 'Satu pilihan'
+                                                    : 'Banyak pilihan'}{' '}
+                                                · {modifier.options.length} opsi
                                             </p>
                                         </div>
                                         <div className="flex flex-wrap gap-1">
-                                            <Button type="button" variant="outline" size="sm" className="min-h-10 rounded-lg" onClick={() => selectModifierOptions(modifier)}>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="min-h-10 rounded-lg"
+                                                onClick={() =>
+                                                    selectModifierOptions(
+                                                        modifier,
+                                                    )
+                                                }
+                                            >
                                                 Opsi
                                             </Button>
-                                            <Button type="button" variant="ghost" size="icon" className="min-h-10 min-w-10" aria-label={`Ubah modifier ${modifier.name}`} onClick={() => editModifier(modifier)}>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="min-h-10 min-w-10"
+                                                aria-label={`Ubah modifier ${modifier.name}`}
+                                                onClick={() =>
+                                                    editModifier(modifier)
+                                                }
+                                            >
                                                 <Edit3 aria-hidden="true" />
                                             </Button>
-                                            <Button type="button" variant="ghost" size="icon" className="text-destructive min-h-10 min-w-10" aria-label={`Hapus modifier ${modifier.name}`} onClick={() => removeResource(`/modifiers/${modifier.id}`, `modifier ${modifier.name}`)}>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="text-destructive min-h-10 min-w-10"
+                                                aria-label={`Hapus modifier ${modifier.name}`}
+                                                onClick={() =>
+                                                    removeResource(
+                                                        `/modifiers/${modifier.id}`,
+                                                        `modifier ${modifier.name}`,
+                                                    )
+                                                }
+                                            >
                                                 <Trash2 aria-hidden="true" />
                                             </Button>
                                         </div>
@@ -1199,37 +1321,153 @@ export default function Products({
                                 <section className="border-border/70 grid gap-4 rounded-2xl border p-4">
                                     <div className="flex items-center justify-between gap-3">
                                         <div>
-                                            <h3 className="font-display font-bold">Opsi: {optionModifier.name}</h3>
-                                            <p className="text-muted-foreground text-xs">Harga dapat dikurangi dengan nilai negatif.</p>
+                                            <h3 className="font-display font-bold">
+                                                Opsi: {optionModifier.name}
+                                            </h3>
+                                            <p className="text-muted-foreground text-xs">
+                                                Harga dapat dikurangi dengan
+                                                nilai negatif.
+                                            </p>
                                         </div>
-                                        <Button type="button" variant="ghost" size="sm" onClick={() => setOptionModifierId(null)}>Tutup</Button>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() =>
+                                                setOptionModifierId(null)
+                                            }
+                                        >
+                                            Tutup
+                                        </Button>
                                     </div>
-                                    <form onSubmit={submitOption} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-end">
+                                    <form
+                                        onSubmit={submitOption}
+                                        className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-end"
+                                    >
                                         <div className="grid gap-2">
-                                            <Label htmlFor="option-name">Nama opsi</Label>
-                                            <Input id="option-name" value={optionForm.data.name} onChange={(event) => optionForm.setData('name', event.target.value)} className="min-h-11 rounded-xl" required />
-                                            <InputError message={optionForm.errors.name} />
+                                            <Label htmlFor="option-name">
+                                                Nama opsi
+                                            </Label>
+                                            <Input
+                                                id="option-name"
+                                                value={optionForm.data.name}
+                                                onChange={(event) =>
+                                                    optionForm.setData(
+                                                        'name',
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="min-h-11 rounded-xl"
+                                                required
+                                            />
+                                            <InputError
+                                                message={optionForm.errors.name}
+                                            />
                                         </div>
                                         <div className="grid gap-2">
-                                            <Label htmlFor="option-price">Selisih (Rp)</Label>
-                                            <Input id="option-price" type="number" value={optionForm.data.price_delta} onChange={(event) => optionForm.setData('price_delta', event.target.value)} className="min-h-11 rounded-xl" required />
-                                            <InputError message={optionForm.errors.price_delta} />
+                                            <Label htmlFor="option-price">
+                                                Selisih (Rp)
+                                            </Label>
+                                            <Input
+                                                id="option-price"
+                                                type="number"
+                                                value={
+                                                    optionForm.data.price_delta
+                                                }
+                                                onChange={(event) =>
+                                                    optionForm.setData(
+                                                        'price_delta',
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className="min-h-11 rounded-xl"
+                                                required
+                                            />
+                                            <InputError
+                                                message={
+                                                    optionForm.errors
+                                                        .price_delta
+                                                }
+                                            />
                                         </div>
-                                        <Button type="submit" className="min-h-11 rounded-xl" disabled={optionForm.processing}>
-                                            {optionForm.processing && <Spinner />}{editingOption ? 'Simpan' : 'Tambah'}
+                                        <Button
+                                            type="submit"
+                                            className="min-h-11 rounded-xl"
+                                            disabled={optionForm.processing}
+                                        >
+                                            {optionForm.processing && (
+                                                <Spinner />
+                                            )}
+                                            {editingOption
+                                                ? 'Simpan'
+                                                : 'Tambah'}
                                         </Button>
                                     </form>
-                                    {editingOption && <Button type="button" variant="ghost" size="sm" className="justify-self-start" onClick={() => { setEditingOption(null); optionForm.reset(); }}>Batal ubah opsi</Button>}
+                                    {editingOption && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="justify-self-start"
+                                            onClick={() => {
+                                                setEditingOption(null);
+                                                optionForm.reset();
+                                            }}
+                                        >
+                                            Batal ubah opsi
+                                        </Button>
+                                    )}
                                     <div className="grid gap-2">
-                                        {optionModifier.options.map((option) => (
-                                            <div key={option.id} className="border-border/70 flex items-center justify-between gap-3 rounded-xl border p-3">
-                                                <p className="text-sm font-medium">{option.name} <span className="text-muted-foreground font-normal">({formatCurrency(option.price_delta)})</span></p>
-                                                <div className="flex gap-1">
-                                                    <Button type="button" variant="ghost" size="icon" className="min-h-10 min-w-10" aria-label={`Ubah opsi ${option.name}`} onClick={() => editOption(option)}><Edit3 aria-hidden="true" /></Button>
-                                                    <Button type="button" variant="ghost" size="icon" className="text-destructive min-h-10 min-w-10" aria-label={`Hapus opsi ${option.name}`} onClick={() => removeResource(`/modifier-options/${option.id}`, `opsi ${option.name}`)}><Trash2 aria-hidden="true" /></Button>
+                                        {optionModifier.options.map(
+                                            (option) => (
+                                                <div
+                                                    key={option.id}
+                                                    className="border-border/70 flex items-center justify-between gap-3 rounded-xl border p-3"
+                                                >
+                                                    <p className="text-sm font-medium">
+                                                        {option.name}{' '}
+                                                        <span className="text-muted-foreground font-normal">
+                                                            (
+                                                            {formatCurrency(
+                                                                option.price_delta,
+                                                            )}
+                                                            )
+                                                        </span>
+                                                    </p>
+                                                    <div className="flex gap-1">
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="min-h-10 min-w-10"
+                                                            aria-label={`Ubah opsi ${option.name}`}
+                                                            onClick={() =>
+                                                                editOption(
+                                                                    option,
+                                                                )
+                                                            }
+                                                        >
+                                                            <Edit3 aria-hidden="true" />
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="text-destructive min-h-10 min-w-10"
+                                                            aria-label={`Hapus opsi ${option.name}`}
+                                                            onClick={() =>
+                                                                removeResource(
+                                                                    `/modifier-options/${option.id}`,
+                                                                    `opsi ${option.name}`,
+                                                                )
+                                                            }
+                                                        >
+                                                            <Trash2 aria-hidden="true" />
+                                                        </Button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            ),
+                                        )}
                                     </div>
                                 </section>
                             )}
@@ -1239,38 +1477,252 @@ export default function Products({
             </Dialog>
 
             <Dialog
-                open={configuredProduct !== undefined && configuredProduct !== null}
+                open={
+                    configuredProduct !== undefined &&
+                    configuredProduct !== null
+                }
                 onOpenChange={(open) => !open && setConfiguredProductId(null)}
             >
                 <DialogContent className="border-border/80 max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[1.5rem] p-5 sm:max-w-3xl sm:p-7">
                     {configuredProduct && (
                         <>
                             <DialogHeader className="pr-8">
-                                <p className="text-primary text-[10px] font-bold tracking-[0.18em] uppercase">Produk</p>
-                                <DialogTitle className="font-display text-2xl">Pilihan {configuredProduct.name}</DialogTitle>
-                                <DialogDescription>Kelola varian harga dan modifier yang dapat dipilih tamu.</DialogDescription>
+                                <p className="text-primary text-[10px] font-bold tracking-[0.18em] uppercase">
+                                    Produk
+                                </p>
+                                <DialogTitle className="font-display text-2xl">
+                                    Pilihan {configuredProduct.name}
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Kelola varian harga dan modifier yang dapat
+                                    dipilih tamu.
+                                </DialogDescription>
                             </DialogHeader>
                             <section className="grid gap-4">
-                                <div className="flex items-center justify-between gap-3"><h3 className="font-display text-lg font-bold">Varian</h3><span className="text-muted-foreground text-xs">{configuredProduct.variants.length} varian</span></div>
-                                <form onSubmit={submitVariant} className="border-border/70 bg-muted/20 grid gap-3 rounded-2xl border p-4 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-end">
-                                    <div className="grid gap-2"><Label htmlFor="variant-name">Nama varian</Label><Input id="variant-name" value={variantForm.data.name} onChange={(event) => variantForm.setData('name', event.target.value)} className="min-h-11 rounded-xl" required /><InputError message={variantForm.errors.name} /></div>
-                                    <div className="grid gap-2"><Label htmlFor="variant-price">Selisih (Rp)</Label><Input id="variant-price" type="number" value={variantForm.data.price_delta} onChange={(event) => variantForm.setData('price_delta', event.target.value)} className="min-h-11 rounded-xl" required /><InputError message={variantForm.errors.price_delta} /></div>
-                                    <Button type="submit" className="min-h-11 rounded-xl" disabled={variantForm.processing}>{variantForm.processing && <Spinner />}{editingVariant ? 'Simpan' : 'Tambah'}</Button>
-                                    <Label htmlFor="variant-default" className="border-border/70 bg-background flex min-h-11 items-center gap-3 rounded-xl border px-3 text-sm"><Checkbox id="variant-default" checked={variantForm.data.is_default} onCheckedChange={(checked) => variantForm.setData('is_default', checked === true)} />Default</Label>
-                                    <Label htmlFor="variant-active" className="border-border/70 bg-background flex min-h-11 items-center gap-3 rounded-xl border px-3 text-sm"><Checkbox id="variant-active" checked={variantForm.data.is_active} onCheckedChange={(checked) => variantForm.setData('is_active', checked === true)} />Aktif</Label>
+                                <div className="flex items-center justify-between gap-3">
+                                    <h3 className="font-display text-lg font-bold">
+                                        Varian
+                                    </h3>
+                                    <span className="text-muted-foreground text-xs">
+                                        {configuredProduct.variants.length}{' '}
+                                        varian
+                                    </span>
+                                </div>
+                                <form
+                                    onSubmit={submitVariant}
+                                    className="border-border/70 bg-muted/20 grid gap-3 rounded-2xl border p-4 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-end"
+                                >
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="variant-name">
+                                            Nama varian
+                                        </Label>
+                                        <Input
+                                            id="variant-name"
+                                            value={variantForm.data.name}
+                                            onChange={(event) =>
+                                                variantForm.setData(
+                                                    'name',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="min-h-11 rounded-xl"
+                                            required
+                                        />
+                                        <InputError
+                                            message={variantForm.errors.name}
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="variant-price">
+                                            Selisih (Rp)
+                                        </Label>
+                                        <Input
+                                            id="variant-price"
+                                            type="number"
+                                            value={variantForm.data.price_delta}
+                                            onChange={(event) =>
+                                                variantForm.setData(
+                                                    'price_delta',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="min-h-11 rounded-xl"
+                                            required
+                                        />
+                                        <InputError
+                                            message={
+                                                variantForm.errors.price_delta
+                                            }
+                                        />
+                                    </div>
+                                    <Button
+                                        type="submit"
+                                        className="min-h-11 rounded-xl"
+                                        disabled={variantForm.processing}
+                                    >
+                                        {variantForm.processing && <Spinner />}
+                                        {editingVariant ? 'Simpan' : 'Tambah'}
+                                    </Button>
+                                    <Label
+                                        htmlFor="variant-default"
+                                        className="border-border/70 bg-background flex min-h-11 items-center gap-3 rounded-xl border px-3 text-sm"
+                                    >
+                                        <Checkbox
+                                            id="variant-default"
+                                            checked={
+                                                variantForm.data.is_default
+                                            }
+                                            onCheckedChange={(checked) =>
+                                                variantForm.setData(
+                                                    'is_default',
+                                                    checked === true,
+                                                )
+                                            }
+                                        />
+                                        Default
+                                    </Label>
+                                    <Label
+                                        htmlFor="variant-active"
+                                        className="border-border/70 bg-background flex min-h-11 items-center gap-3 rounded-xl border px-3 text-sm"
+                                    >
+                                        <Checkbox
+                                            id="variant-active"
+                                            checked={variantForm.data.is_active}
+                                            onCheckedChange={(checked) =>
+                                                variantForm.setData(
+                                                    'is_active',
+                                                    checked === true,
+                                                )
+                                            }
+                                        />
+                                        Aktif
+                                    </Label>
                                 </form>
-                                {editingVariant && <Button type="button" variant="ghost" size="sm" className="justify-self-start" onClick={() => { setEditingVariant(null); variantForm.reset(); }}>Batal ubah varian</Button>}
+                                {editingVariant && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="justify-self-start"
+                                        onClick={() => {
+                                            setEditingVariant(null);
+                                            variantForm.reset();
+                                        }}
+                                    >
+                                        Batal ubah varian
+                                    </Button>
+                                )}
                                 <div className="grid gap-2">
-                                    {configuredProduct.variants.map((variant) => <div key={variant.id} className="border-border/70 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><p className="text-sm font-medium">{variant.name} <span className="text-muted-foreground font-normal">({formatCurrency(variant.price_delta)}){variant.is_default ? ' · Default' : ''}{!variant.is_active ? ' · Nonaktif' : ''}</span></p><div className="flex gap-1"><Button type="button" variant="ghost" size="icon" className="min-h-10 min-w-10" aria-label={`Ubah varian ${variant.name}`} onClick={() => editVariant(variant)}><Edit3 aria-hidden="true" /></Button><Button type="button" variant="ghost" size="icon" className="text-destructive min-h-10 min-w-10" aria-label={`Hapus varian ${variant.name}`} onClick={() => removeResource(`/product-variants/${variant.id}`, `varian ${variant.name}`)}><Trash2 aria-hidden="true" /></Button></div></div>)}
+                                    {configuredProduct.variants.map(
+                                        (variant) => (
+                                            <div
+                                                key={variant.id}
+                                                className="border-border/70 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"
+                                            >
+                                                <p className="text-sm font-medium">
+                                                    {variant.name}{' '}
+                                                    <span className="text-muted-foreground font-normal">
+                                                        (
+                                                        {formatCurrency(
+                                                            variant.price_delta,
+                                                        )}
+                                                        )
+                                                        {variant.is_default
+                                                            ? ' · Default'
+                                                            : ''}
+                                                        {!variant.is_active
+                                                            ? ' · Nonaktif'
+                                                            : ''}
+                                                    </span>
+                                                </p>
+                                                <div className="flex gap-1">
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="min-h-10 min-w-10"
+                                                        aria-label={`Ubah varian ${variant.name}`}
+                                                        onClick={() =>
+                                                            editVariant(variant)
+                                                        }
+                                                    >
+                                                        <Edit3 aria-hidden="true" />
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-destructive min-h-10 min-w-10"
+                                                        aria-label={`Hapus varian ${variant.name}`}
+                                                        onClick={() =>
+                                                            removeResource(
+                                                                `/product-variants/${variant.id}`,
+                                                                `varian ${variant.name}`,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Trash2 aria-hidden="true" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ),
+                                    )}
                                 </div>
                             </section>
                             <section className="border-border/70 grid gap-4 border-t pt-5">
-                                <div><h3 className="font-display text-lg font-bold">Modifier produk</h3><p className="text-muted-foreground mt-1 text-sm">Pilih modifier yang tersedia untuk produk ini.</p></div>
-                                <div className="grid gap-2 sm:grid-cols-2">
-                                    {modifiers.map((modifier) => <Label key={modifier.id} htmlFor={`product-modifier-${modifier.id}`} className="border-border/70 bg-muted/20 flex min-h-12 items-center gap-3 rounded-xl border px-3 text-sm"><Checkbox id={`product-modifier-${modifier.id}`} checked={modifierIds.includes(modifier.id)} onCheckedChange={() => toggleModifierAssignment(modifier.id)} /> <span>{modifier.name}<span className="text-muted-foreground block text-xs">{modifier.options.length} opsi · {modifier.is_active ? 'Aktif' : 'Nonaktif'}</span></span></Label>)}
-                                    {modifiers.length === 0 && <p className="text-muted-foreground text-sm">Buat modifier terlebih dahulu melalui Kelola katalog.</p>}
+                                <div>
+                                    <h3 className="font-display text-lg font-bold">
+                                        Modifier produk
+                                    </h3>
+                                    <p className="text-muted-foreground mt-1 text-sm">
+                                        Pilih modifier yang tersedia untuk
+                                        produk ini.
+                                    </p>
                                 </div>
-                                <Button type="button" className="min-h-11 justify-self-start rounded-xl" onClick={saveModifierAssignments}>Simpan modifier produk</Button>
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                    {modifiers.map((modifier) => (
+                                        <Label
+                                            key={modifier.id}
+                                            htmlFor={`product-modifier-${modifier.id}`}
+                                            className="border-border/70 bg-muted/20 flex min-h-12 items-center gap-3 rounded-xl border px-3 text-sm"
+                                        >
+                                            <Checkbox
+                                                id={`product-modifier-${modifier.id}`}
+                                                checked={modifierIds.includes(
+                                                    modifier.id,
+                                                )}
+                                                onCheckedChange={() =>
+                                                    toggleModifierAssignment(
+                                                        modifier.id,
+                                                    )
+                                                }
+                                            />{' '}
+                                            <span>
+                                                {modifier.name}
+                                                <span className="text-muted-foreground block text-xs">
+                                                    {modifier.options.length}{' '}
+                                                    opsi ·{' '}
+                                                    {modifier.is_active
+                                                        ? 'Aktif'
+                                                        : 'Nonaktif'}
+                                                </span>
+                                            </span>
+                                        </Label>
+                                    ))}
+                                    {modifiers.length === 0 && (
+                                        <p className="text-muted-foreground text-sm">
+                                            Buat modifier terlebih dahulu
+                                            melalui Kelola katalog.
+                                        </p>
+                                    )}
+                                </div>
+                                <Button
+                                    type="button"
+                                    className="min-h-11 justify-self-start rounded-xl"
+                                    onClick={saveModifierAssignments}
+                                >
+                                    Simpan modifier produk
+                                </Button>
                             </section>
                         </>
                     )}
@@ -1279,7 +1731,9 @@ export default function Products({
 
             <Dialog
                 open={isCreateOpen}
-                onOpenChange={(open) => (open ? setIsCreateOpen(true) : closeProductForm())}
+                onOpenChange={(open) =>
+                    open ? setIsCreateOpen(true) : closeProductForm()
+                }
             >
                 <DialogContent className="border-border/80 rounded-[1.5rem] p-5 sm:max-w-xl sm:p-7">
                     <DialogHeader className="pr-8">
@@ -1500,7 +1954,10 @@ export default function Products({
                                     id="product-active"
                                     checked={form.data.is_active}
                                     onCheckedChange={(checked) =>
-                                        form.setData('is_active', checked === true)
+                                        form.setData(
+                                            'is_active',
+                                            checked === true,
+                                        )
                                     }
                                 />
                                 Produk aktif
@@ -1545,7 +2002,9 @@ export default function Products({
                                 disabled={form.processing}
                             >
                                 {form.processing && <Spinner />}
-                                {editingProduct ? 'Simpan perubahan' : 'Tambah produk'}
+                                {editingProduct
+                                    ? 'Simpan perubahan'
+                                    : 'Tambah produk'}
                             </Button>
                         </DialogFooter>
                     </form>

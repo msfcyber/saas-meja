@@ -3,7 +3,13 @@ import { CheckCircle2, KeyRound, ShieldCheck } from 'lucide-react';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -44,28 +50,37 @@ export default function Gateway({ gateway }: Props) {
                 />
 
                 <Card className="overflow-hidden rounded-2xl">
-                    <CardHeader className="border-b bg-muted/25">
+                    <CardHeader className="bg-muted/25 border-b">
                         <div className="flex items-start justify-between gap-4">
                             <div className="space-y-1.5">
                                 <CardTitle className="flex items-center gap-2">
-                                    <KeyRound className="size-4 text-primary" aria-hidden="true" />
+                                    <KeyRound
+                                        className="text-primary size-4"
+                                        aria-hidden="true"
+                                    />
                                     Midtrans
                                 </CardTitle>
                                 <CardDescription>
-                                    Order credentials are encrypted at rest and retained by version for safe rotation.
+                                    Order credentials are encrypted at rest and
+                                    retained by version for safe rotation.
                                 </CardDescription>
                             </div>
                             <span
                                 className={
                                     gateway.configured
                                         ? 'inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300'
-                                        : 'inline-flex shrink-0 items-center rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground'
+                                        : 'bg-muted text-muted-foreground inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold'
                                 }
                             >
                                 {gateway.configured && (
-                                    <CheckCircle2 className="size-3.5" aria-hidden="true" />
+                                    <CheckCircle2
+                                        className="size-3.5"
+                                        aria-hidden="true"
+                                    />
                                 )}
-                                {gateway.configured ? 'Configured' : 'Not configured'}
+                                {gateway.configured
+                                    ? 'Configured'
+                                    : 'Not configured'}
                             </span>
                         </div>
                     </CardHeader>
@@ -73,25 +88,41 @@ export default function Gateway({ gateway }: Props) {
                     <CardContent className="grid gap-6 pt-6">
                         <dl className="grid gap-4 text-sm sm:grid-cols-3">
                             <div className="grid gap-1">
-                                <dt className="text-muted-foreground">Provider</dt>
-                                <dd className="font-semibold uppercase">{gateway.provider}</dd>
-                            </div>
-                            <div className="grid gap-1">
-                                <dt className="text-muted-foreground">Active version</dt>
-                                <dd className="font-semibold">
-                                    {gateway.version === null ? 'Not configured' : `v${gateway.version}`}
+                                <dt className="text-muted-foreground">
+                                    Provider
+                                </dt>
+                                <dd className="font-semibold uppercase">
+                                    {gateway.provider}
                                 </dd>
                             </div>
                             <div className="grid gap-1">
-                                <dt className="text-muted-foreground">Configured at</dt>
-                                <dd className="font-semibold">{formatTimestamp(gateway.configured_at)}</dd>
+                                <dt className="text-muted-foreground">
+                                    Active version
+                                </dt>
+                                <dd className="font-semibold">
+                                    {gateway.version === null
+                                        ? 'Not configured'
+                                        : `v${gateway.version}`}
+                                </dd>
+                            </div>
+                            <div className="grid gap-1">
+                                <dt className="text-muted-foreground">
+                                    Configured at
+                                </dt>
+                                <dd className="font-semibold">
+                                    {formatTimestamp(gateway.configured_at)}
+                                </dd>
                             </div>
                         </dl>
 
-                        <div className="flex items-start gap-3 rounded-xl border border-primary/15 bg-primary/5 p-4 text-sm">
-                            <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                        <div className="border-primary/15 bg-primary/5 flex items-start gap-3 rounded-xl border p-4 text-sm">
+                            <ShieldCheck
+                                className="text-primary mt-0.5 size-4 shrink-0"
+                                aria-hidden="true"
+                            />
                             <p className="text-muted-foreground">
-                                Entering a new Server Key retires the previous version. The stored secret is never shown again.
+                                Entering a new Server Key retires the previous
+                                version. The stored secret is never shown again.
                             </p>
                         </div>
 
@@ -105,7 +136,9 @@ export default function Gateway({ gateway }: Props) {
                             {({ errors, processing }) => (
                                 <>
                                     <div className="grid gap-2">
-                                        <Label htmlFor="gateway-secret">New Midtrans Server Key</Label>
+                                        <Label htmlFor="gateway-secret">
+                                            New Midtrans Server Key
+                                        </Label>
                                         <Input
                                             id="gateway-secret"
                                             name="server_key"
@@ -113,9 +146,13 @@ export default function Gateway({ gateway }: Props) {
                                             autoComplete="new-password"
                                             placeholder="Paste the tenant Server Key"
                                             required
-                                            aria-invalid={Boolean(errors.server_key)}
+                                            aria-invalid={Boolean(
+                                                errors.server_key,
+                                            )}
                                             aria-describedby={
-                                                errors.server_key ? 'gateway-secret-error' : undefined
+                                                errors.server_key
+                                                    ? 'gateway-secret-error'
+                                                    : undefined
                                             }
                                         />
                                         <InputError
@@ -125,8 +162,13 @@ export default function Gateway({ gateway }: Props) {
                                     </div>
 
                                     <div className="flex items-center justify-end">
-                                        <Button type="submit" disabled={processing}>
-                                            {processing ? 'Rotating...' : 'Rotate credential'}
+                                        <Button
+                                            type="submit"
+                                            disabled={processing}
+                                        >
+                                            {processing
+                                                ? 'Rotating...'
+                                                : 'Rotate credential'}
                                         </Button>
                                     </div>
                                 </>

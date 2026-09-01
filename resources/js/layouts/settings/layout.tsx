@@ -80,7 +80,9 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                                 <Link
                                     href={item.href}
                                     aria-current={
-                                        isCurrentOrParentUrl(item.href) ? 'page' : undefined
+                                        isCurrentOrParentUrl(item.href)
+                                            ? 'page'
+                                            : undefined
                                     }
                                 >
                                     {item.icon && (

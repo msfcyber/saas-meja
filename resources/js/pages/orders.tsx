@@ -184,7 +184,9 @@ export default function Orders({
 }: Props) {
     const [search, setSearch] = useState(filters.search);
     const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
-    const [pendingRefundOrderId, setPendingRefundOrderId] = useState<number | null>(null);
+    const [pendingRefundOrderId, setPendingRefundOrderId] = useState<
+        number | null
+    >(null);
     const [notificationPreferences, setNotificationPreferences] =
         useState<NotificationPreferences>(notifications);
     const [liveAnnouncement, setLiveAnnouncement] = useState('');
@@ -442,10 +444,12 @@ export default function Orders({
     }
 
     function refundOrder(order: StaffOrder) {
-        const reason = window.prompt(
-            `Alasan refund penuh untuk order ${order.number}`,
-            'Permintaan refund manual',
-        )?.trim();
+        const reason = window
+            .prompt(
+                `Alasan refund penuh untuk order ${order.number}`,
+                'Permintaan refund manual',
+            )
+            ?.trim();
 
         if (!reason) {
             return;
@@ -851,8 +855,8 @@ export default function Orders({
                                             </strong>
                                         </div>
                                         <div className="mt-5 grid gap-2">
-                                             {order.payment_status ===
-                                                 'paid' && (
+                                            {order.payment_status ===
+                                                'paid' && (
                                                 <a
                                                     href={`/orders/${order.id}/receipt`}
                                                     target="_blank"
@@ -864,24 +868,36 @@ export default function Orders({
                                                         className="size-3.5"
                                                         aria-hidden="true"
                                                     />
-                                                     Cetak struk
-                                                 </a>
-                                             )}
-                                             {order.payment_status === 'paid' &&
-                                                 order.status === 'paid' && (
-                                                 <button
-                                                     type="button"
-                                                     onClick={() => refundOrder(order)}
-                                                     disabled={pendingRefundOrderId === order.id}
-                                                     aria-busy={pendingRefundOrderId === order.id}
-                                                     className="border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-                                                 >
-                                                     <Undo2 className="size-3.5" aria-hidden="true" />
-                                                     {pendingRefundOrderId === order.id
-                                                         ? 'Mengirim refund...'
-                                                         : 'Refund penuh'}
-                                                 </button>
-                                             )}
+                                                    Cetak struk
+                                                </a>
+                                            )}
+                                            {order.payment_status === 'paid' &&
+                                                order.status === 'paid' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            refundOrder(order)
+                                                        }
+                                                        disabled={
+                                                            pendingRefundOrderId ===
+                                                            order.id
+                                                        }
+                                                        aria-busy={
+                                                            pendingRefundOrderId ===
+                                                            order.id
+                                                        }
+                                                        className="border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                                                    >
+                                                        <Undo2
+                                                            className="size-3.5"
+                                                            aria-hidden="true"
+                                                        />
+                                                        {pendingRefundOrderId ===
+                                                        order.id
+                                                            ? 'Mengirim refund...'
+                                                            : 'Refund penuh'}
+                                                    </button>
+                                                )}
                                             <button
                                                 type="button"
                                                 onClick={() => advance(order)}

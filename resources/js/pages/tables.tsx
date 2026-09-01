@@ -528,7 +528,8 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                                 className="min-h-11 flex-1 rounded-xl"
                                                 onClick={() => editTable(table)}
                                             >
-                                                <Edit3 aria-hidden="true" /> Ubah meja
+                                                <Edit3 aria-hidden="true" />{' '}
+                                                Ubah meja
                                             </Button>
                                             <Button
                                                 variant="secondary"
@@ -579,7 +580,9 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
             </div>
             <Dialog
                 open={isCreateOpen}
-                onOpenChange={(open) => (open ? setIsCreateOpen(true) : closeTableForm())}
+                onOpenChange={(open) =>
+                    open ? setIsCreateOpen(true) : closeTableForm()
+                }
             >
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
@@ -710,7 +713,10 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                 type="checkbox"
                                 checked={form.data.is_active}
                                 onChange={(event) =>
-                                    form.setData('is_active', event.target.checked)
+                                    form.setData(
+                                        'is_active',
+                                        event.target.checked,
+                                    )
                                 }
                                 className="accent-primary size-4"
                             />
@@ -723,7 +729,9 @@ export default function Tables({ filters, summary, zones, tables }: Props) {
                                 disabled={form.processing}
                             >
                                 {form.processing && <Spinner />}
-                                {editingTable ? 'Simpan perubahan' : 'Tambah meja'}
+                                {editingTable
+                                    ? 'Simpan perubahan'
+                                    : 'Tambah meja'}
                             </Button>
                         </DialogFooter>
                     </form>

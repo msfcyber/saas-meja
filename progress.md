@@ -1,6 +1,6 @@
 # Progress Pengembangan
 
-Terakhir diperbarui: 31 Agustus 2026
+Terakhir diperbarui: 1 September 2026
 
 ## Selesai - Frontend Foundation
 
@@ -24,7 +24,7 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Menambahkan label/error association `aria-invalid` dan `aria-describedby` pada form auth, onboarding, settings, produk, meja, checkout, dan two-factor.
 - [x] Menambahkan skip link, landmark utama, state navigasi aktif, live announcement, dan label kontrol ikon.
 - [x] Memperbaiki target tombol mobile, dialog/sheet overflow, kontras CTA checkout, dan menghapus positive `tabIndex` pada auth.
-- [ ] Browser-level accessibility audit dan verifikasi viewport masih menunggu E2E/browser tooling.
+- [x] Browser-level accessibility audit dan verifikasi viewport lulus pada desktop, tablet, dan mobile 360 px dengan Playwright/axe.
 
 ## Selesai - Backend Foundation: Data Layer
 
@@ -98,7 +98,7 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Lengkapi halaman dan action superadmin untuk tenant, paket/harga, subscription, dan pembatalan invoice pending; semua perubahan menulis audit log.
 - [x] Implementasikan event analytics minimum, privacy-safe hashing, validasi QR/product, tracking customer web, dan dashboard funnel 30 hari.
 - [x] Selaraskan baseline produksi dengan MySQL, Redis queue worker, S3-compatible public storage, dan deployment Docker/Nginx/PHP-FPM; Horizon menunggu rilis kompatibel Laravel 13.
-- [x] Hubungkan backup produksi ke mysqldump/gzip, asset disk, storage S3 private terenkripsi, checksum, dan restore drill SQLite terisolasi; restore drill MySQL nyata tetap memerlukan target recovery operator.
+- [x] Hubungkan backup produksi ke mysqldump/gzip, asset disk, storage S3 private terenkripsi, checksum, dan restore drill SQLite/MySQL terisolasi; target recovery production tetap memerlukan operator environment.
 
 ## Task Berikutnya - Backend Foundation
 
@@ -145,7 +145,7 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Sediakan action refund manual penuh yang dilindungi permission `payment.refund`, idempotency key, audit log, state lokal, dan gateway Midtrans. Refund parsial/lintas gateway tetap di luar MVP.
 - [x] Gunakan background job Redis untuk reconciliation payment dengan retry/backoff; worker Docker serta queue monitoring tersedia. Flow notifikasi/laporan tambahan tetap dapat dipecah menjadi job berikutnya bila diperlukan.
 - [x] Jalankan server Reverb pada deployment produksi melalui service `reverb` di `docker-compose.yml`; runtime deployment dan TLS masih menunggu environment Docker.
-- [ ] Jalankan restore drill MySQL nyata pada target terisolasi dan catat RPO/RTO; implementasi import `mysql` ke database disposable sudah tersedia, tetapi target recovery nyata belum dapat diverifikasi.
+- [x] Jalankan restore drill MySQL pada target disposable terisolasi: backup `20260901_041139Z` valid, gzip/checksum lulus, 13 asset entries terdeteksi, dan restore drill berhasil dalam 4,995 detik; RPO produksi tetap memerlukan target recovery operator.
 
 ## Verifikasi Terakhir
 
@@ -154,9 +154,9 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] `composer run types:check`: PHPStan lulus tanpa error.
 - [x] `npm run types:check`: TypeScript lulus.
 - [x] `npm run build`: build produksi lulus; hanya ada warning opsional package `fontaine`.
-- [x] `php artisan migrate --force`: seluruh migration lokal, termasuk refund, Google identity, dan analytics, sudah diterapkan.
+- [x] `php artisan migrate --force`: seluruh migration lokal, termasuk refund, Google identity, dan analytics, sudah diterapkan; `migrate:fresh --force` juga lulus pada MySQL disposable.
 - [x] Dependency lokal disinkronkan melalui `composer install`; `laravel/socialite` v5.30.1 sebelumnya ada di lockfile tetapi belum terpasang di `vendor`.
-- [ ] `npm run check`: masih menemukan formatting pada 128 file tooling/dokumen/source lama; tidak dijalankan `--fix` agar tidak mengubah file di luar scope audit.
+- [x] `npm run check`: lulus setelah baseline source diformat; 35 file frontend lama ikut dirapikan dan direktori tooling internal tetap dikecualikan.
 - [ ] `docker compose config --quiet` dan runtime Compose: Docker CLI tidak tersedia pada environment ini.
 
 ## Quality Gate Berikutnya
@@ -172,7 +172,7 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Feature test propagation correlation ID dan korelasi audit request.
 - [x] Feature test structured telemetry, redaction atribut, dan health threshold.
 - [x] Feature test CRUD produk/meja, lifecycle gambar, refund penuh idempotent/failure/permission, dan queued reconciliation.
-- [ ] Sediakan browser/E2E tooling lalu uji alur scan QR sampai struk pada viewport 360 px, tablet, dan desktop; saat ini belum ada `tests/Browser` atau konfigurasi Playwright/Cypress.
-- [ ] Audit aksesibilitas, Core Web Vitals, optimasi gambar, empty/error/loading state, dan koneksi lambat; static accessibility hardening sudah selesai tetapi verifikasi browser-level belum dilakukan.
-- [ ] Rapikan baseline formatting non-source pada `npm run check`; targeted source check dan `npm run types:check` sudah lulus, tetapi full check masih menemukan 128 file tooling/dokumen/source lama.
-- [ ] Jalankan validasi runtime Docker untuk Compose, Reverb, Redis worker, dan MySQL restore drill pada target disposable.
+- [x] Sediakan browser/E2E tooling lalu uji alur scan QR sampai struk pada viewport 360 px, tablet, dan desktop dengan Playwright; seluruh 12 test matrix lulus.
+- [x] Audit aksesibilitas axe, Core Web Vitals dasar, overflow, optimasi gambar, empty/error/loading state, dan koneksi offline/lambat pada browser test lulus.
+- [x] Rapikan baseline formatting source pada `npm run check`; full check lulus tanpa warning/error.
+- [ ] Jalankan validasi runtime Docker untuk Compose, Reverb, dan Redis worker; Docker CLI tidak tersedia. Restore drill MySQL disposable sudah lulus.

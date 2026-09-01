@@ -1,4 +1,4 @@
-import { BrandMark, BrandName } from "@/components/brand-mark";
+import { BrandMark, BrandName } from '@/components/brand-mark';
 
 export default function AppLogo() {
     return (

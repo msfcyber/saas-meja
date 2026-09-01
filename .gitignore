@@ -5,6 +5,8 @@
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
+/playwright-report
+/test-results
 /storage/*.key
 /storage/pail
 /resources/js/actions

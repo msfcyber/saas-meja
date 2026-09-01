@@ -17,7 +17,10 @@ return new class extends Migration
             $table->boolean('sound_enabled')->default(true);
             $table->timestamps();
 
-            $table->unique(['tenant_id', 'outlet_id', 'user_id']);
+            $table->unique(
+                ['tenant_id', 'outlet_id', 'user_id'],
+                'staff_notification_scope_user_unique',
+            );
             $table->foreign(['outlet_id', 'tenant_id'])
                 ->references(['id', 'tenant_id'])
                 ->on('outlets')

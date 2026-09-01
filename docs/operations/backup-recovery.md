@@ -170,6 +170,17 @@ can pass the relevant feature tests and a representative QR-to-receipt smoke
 flow. Record the measured RTO and the oldest recoverable data point so the
 configured targets remain honest.
 
+### Local MySQL drill record
+
+The disposable MySQL 8.4.3 drill on 2026-09-01 completed with backup
+`20260901_041139Z`. The compressed dump passed `gzip -t` and checksum
+verification, the asset archive contained 13 entries, and the isolated
+database import completed successfully. The measured verification command took
+4.995 seconds. This is a local restore-mechanics result, not a production
+cutover RTO; the synthetic drill had no writes after the snapshot, so observed
+data loss was zero. Production RPO/RTO still requires an operator-managed
+recovery target and a full application smoke test.
+
 ## Operational Checklist
 
 - Confirm the backup job exits non-zero on database, archive, checksum, or

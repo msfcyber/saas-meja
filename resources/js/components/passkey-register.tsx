@@ -1,38 +1,38 @@
-import { usePasskeyRegister } from "@laravel/passkeys/react";
-import { useState } from "react";
-import InputError from "@/components/input-error";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { usePasskeyRegister } from '@laravel/passkeys/react';
+import { useState } from 'react';
+import InputError from '@/components/input-error';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 type Props = {
     onSuccess: () => void;
 };
 
 function defaultPasskeyName(): string {
-    if (typeof navigator === "undefined") {
-        return "";
+    if (typeof navigator === 'undefined') {
+        return '';
     }
 
     const ua = navigator.userAgent;
 
     const browser = [
-        { pattern: /Edg|Edge/, name: "Edge" },
-        { pattern: /OPR|Opera|OPiOS/, name: "Opera" },
-        { pattern: /Firefox|FxiOS/, name: "Firefox" },
-        { pattern: /Chrome|CriOS/, name: "Chrome" },
-        { pattern: /Safari/, name: "Safari" },
+        { pattern: /Edg|Edge/, name: 'Edge' },
+        { pattern: /OPR|Opera|OPiOS/, name: 'Opera' },
+        { pattern: /Firefox|FxiOS/, name: 'Firefox' },
+        { pattern: /Chrome|CriOS/, name: 'Chrome' },
+        { pattern: /Safari/, name: 'Safari' },
     ].find(({ pattern }) => pattern.test(ua))?.name;
 
     const os = [
-        { pattern: /iPhone/, name: "iPhone" },
-        { pattern: /iPad|Macintosh(?=.*Mobile)/, name: "iPad" },
-        { pattern: /Android/, name: "Android" },
-        { pattern: /Mac/, name: "Mac" },
-        { pattern: /Windows/, name: "Windows" },
+        { pattern: /iPhone/, name: 'iPhone' },
+        { pattern: /iPad|Macintosh(?=.*Mobile)/, name: 'iPad' },
+        { pattern: /Android/, name: 'Android' },
+        { pattern: /Mac/, name: 'Mac' },
+        { pattern: /Windows/, name: 'Windows' },
     ].find(({ pattern }) => pattern.test(ua))?.name;
 
-    return [browser, os].filter(Boolean).join(" on ") || "";
+    return [browser, os].filter(Boolean).join(' on ') || '';
 }
 
 export default function PasskeyRegistration({ onSuccess }: Props) {
@@ -41,7 +41,7 @@ export default function PasskeyRegistration({ onSuccess }: Props) {
     const [showForm, setShowForm] = useState(false);
     const { register, isLoading, error, isSupported } = usePasskeyRegister({
         onSuccess: () => {
-            setName("");
+            setName('');
             setShowForm(false);
             onSuccess();
         },
@@ -59,7 +59,7 @@ export default function PasskeyRegistration({ onSuccess }: Props) {
 
     const handleCancel = () => {
         setShowForm(false);
-        setName("");
+        setName('');
     };
 
     if (!isSupported) {
@@ -94,7 +94,7 @@ export default function PasskeyRegistration({ onSuccess }: Props) {
                     className="border-foreground/20 mt-1 block w-full"
                     autoFocus
                     aria-invalid={Boolean(error)}
-                    aria-describedby={error ? "passkey-name-error" : undefined}
+                    aria-describedby={error ? 'passkey-name-error' : undefined}
                 />
                 <p className="text-muted-foreground text-xs">
                     A name helps you identify this passkey later.
@@ -105,7 +105,7 @@ export default function PasskeyRegistration({ onSuccess }: Props) {
 
             <div className="flex gap-2">
                 <Button type="submit" disabled={isLoading || !name.trim()}>
-                    {isLoading ? "Registering..." : "Register passkey"}
+                    {isLoading ? 'Registering...' : 'Register passkey'}
                 </Button>
                 <Button type="button" variant="ghost" onClick={handleCancel}>
                     Cancel

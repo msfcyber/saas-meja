@@ -154,7 +154,10 @@ return new class extends Migration
                 ->references(['id', 'tenant_id', 'outlet_id'])
                 ->on('orders')
                 ->cascadeOnDelete();
-            $table->index(['tenant_id', 'outlet_id', 'order_id', 'created_at']);
+            $table->index(
+                ['tenant_id', 'outlet_id', 'order_id', 'created_at'],
+                'order_histories_scope_created_idx',
+            );
         });
     }
 

@@ -1,9 +1,9 @@
-import type { HTMLAttributes } from "react";
-import { cn } from "@/lib/utils";
+import type { HTMLAttributes } from 'react';
+import { cn } from '@/lib/utils';
 
 export default function InputError({
     message,
-    className = "",
+    className = '',
     ...props
 }: HTMLAttributes<HTMLParagraphElement> & { message?: string }) {
     return message ? (
@@ -12,7 +12,7 @@ export default function InputError({
             role="alert"
             aria-live="polite"
             aria-atomic="true"
-            className={cn("text-sm text-red-600 dark:text-red-400", className)}
+            className={cn('text-sm text-red-600 dark:text-red-400', className)}
         >
             {message}
         </p>

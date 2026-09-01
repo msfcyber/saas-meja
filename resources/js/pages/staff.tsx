@@ -100,7 +100,10 @@ export default function Staff({
         form.setData('email', member.email);
         form.setData('role', member.role ?? 'cashier');
         form.setData('status', member.status);
-        form.setData('outlet_ids', member.outlets.map((outlet) => outlet.id));
+        form.setData(
+            'outlet_ids',
+            member.outlets.map((outlet) => outlet.id),
+        );
         form.clearErrors();
         setIsOpen(true);
     }
@@ -241,9 +244,7 @@ export default function Staff({
                             <p className="text-muted-foreground text-xs">
                                 Model akses
                             </p>
-                            <p className="mt-1 text-xl font-bold">
-                                Per outlet
-                            </p>
+                            <p className="mt-1 text-xl font-bold">Per outlet</p>
                         </div>
                     </article>
                 </section>
@@ -319,17 +320,20 @@ export default function Staff({
                                                     <span className="bg-secondary text-secondary-foreground rounded-full px-2 py-1 text-[11px] font-medium">
                                                         Semua outlet aktif
                                                     </span>
-                                                ) : member.outlets.length > 0 ? (
-                                                    member.outlets.map((outlet) => (
-                                                        <span
-                                                            key={outlet.id}
-                                                            className={`rounded-full px-2 py-1 text-[11px] font-medium ${outlet.is_active ? 'bg-secondary text-secondary-foreground' : 'bg-muted text-muted-foreground'}`}
-                                                        >
-                                                            {outlet.name}
-                                                            {!outlet.is_active &&
-                                                                ' (nonaktif)'}
-                                                        </span>
-                                                    ))
+                                                ) : member.outlets.length >
+                                                  0 ? (
+                                                    member.outlets.map(
+                                                        (outlet) => (
+                                                            <span
+                                                                key={outlet.id}
+                                                                className={`rounded-full px-2 py-1 text-[11px] font-medium ${outlet.is_active ? 'bg-secondary text-secondary-foreground' : 'bg-muted text-muted-foreground'}`}
+                                                            >
+                                                                {outlet.name}
+                                                                {!outlet.is_active &&
+                                                                    ' (nonaktif)'}
+                                                            </span>
+                                                        ),
+                                                    )
                                                 ) : (
                                                     <span className="text-muted-foreground text-[11px]">
                                                         Belum ada outlet
@@ -517,9 +521,10 @@ export default function Staff({
                             </p>
                             <div className="grid gap-2 rounded-xl border p-3 sm:grid-cols-2">
                                 {outlets.map((outlet) => {
-                                    const checked = form.data.outlet_ids.includes(
-                                        outlet.id,
-                                    );
+                                    const checked =
+                                        form.data.outlet_ids.includes(
+                                            outlet.id,
+                                        );
 
                                     return (
                                         <Label

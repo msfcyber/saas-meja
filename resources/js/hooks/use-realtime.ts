@@ -1,16 +1,16 @@
-import Echo, { type ConnectionStatus } from "laravel-echo";
-import Pusher from "pusher-js";
-import { useEffect, useEffectEvent, useState } from "react";
+import Echo, { type ConnectionStatus } from 'laravel-echo';
+import Pusher from 'pusher-js';
+import { useEffect, useEffectEvent, useState } from 'react';
 
 export type RealtimeStatus =
-    | "disabled"
-    | "connecting"
-    | "reconnecting"
-    | "connected"
-    | "polling"
-    | "offline";
+    | 'disabled'
+    | 'connecting'
+    | 'reconnecting'
+    | 'connected'
+    | 'polling'
+    | 'offline';
 
-type ChannelType = "public" | "private";
+type ChannelType = 'public' | 'private';
 
 type UseRealtimeOptions = {
     enabled: boolean;
@@ -22,7 +22,7 @@ type UseRealtimeOptions = {
     pollInterval?: number;
 };
 
-function createEcho(): Echo<"reverb"> | null {
+function createEcho(): Echo<'reverb'> | null {
     const key = import.meta.env.VITE_REVERB_APP_KEY;
     const host = import.meta.env.VITE_REVERB_HOST;
 
@@ -30,41 +30,41 @@ function createEcho(): Echo<"reverb"> | null {
         return null;
     }
 
-    const scheme = import.meta.env.VITE_REVERB_SCHEME || "http";
+    const scheme = import.meta.env.VITE_REVERB_SCHEME || 'http';
     const configuredPort = Number(import.meta.env.VITE_REVERB_PORT);
     const port =
         Number.isFinite(configuredPort) && configuredPort > 0
             ? configuredPort
-            : scheme === "https"
+            : scheme === 'https'
               ? 443
               : 80;
 
     return new Echo({
-        broadcaster: "reverb",
+        broadcaster: 'reverb',
         key,
         wsHost: host,
         wsPort: port,
         wssPort: port,
-        forceTLS: scheme === "https",
-        enabledTransports: ["ws", "wss"],
+        forceTLS: scheme === 'https',
+        enabledTransports: ['ws', 'wss'],
         Pusher,
     });
 }
 
 function connectionStatus(status: ConnectionStatus): RealtimeStatus {
-    if (status === "connected") {
-        return "connected";
+    if (status === 'connected') {
+        return 'connected';
     }
 
-    if (status === "reconnecting" || status === "disconnected") {
-        return "reconnecting";
+    if (status === 'reconnecting' || status === 'disconnected') {
+        return 'reconnecting';
     }
 
-    if (status === "failed") {
-        return "offline";
+    if (status === 'failed') {
+        return 'offline';
     }
 
-    return "connecting";
+    return 'connecting';
 }
 
 export function useRealtime({
@@ -76,13 +76,15 @@ export function useRealtime({
     onRefresh,
     pollInterval = 15_000,
 }: UseRealtimeOptions): RealtimeStatus {
-    const [status, setStatus] = useState<RealtimeStatus>(enabled ? "connecting" : "disabled");
+    const [status, setStatus] = useState<RealtimeStatus>(
+        enabled ? 'connecting' : 'disabled',
+    );
     const onEventEvent = useEffectEvent(onEvent);
     const onRefreshEvent = useEffectEvent(onRefresh);
 
     useEffect(() => {
         if (!enabled) {
-            setStatus("disabled");
+            setStatus('disabled');
 
             return;
         }
@@ -102,11 +104,13 @@ export function useRealtime({
                 await onRefreshEvent();
 
                 if (!disposed) {
-                    setStatus((current) => (current === "offline" ? "polling" : current));
+                    setStatus((current) =>
+                        current === 'offline' ? 'polling' : current,
+                    );
                 }
             } catch {
                 if (!disposed) {
-                    setStatus("offline");
+                    setStatus('offline');
                 }
             } finally {
                 pollInFlight = false;
@@ -131,8 +135,8 @@ export function useRealtime({
             pollTimer = null;
         };
 
-        if (channel === "") {
-            setStatus("polling");
+        if (channel === '') {
+            setStatus('polling');
             startPolling();
 
             return () => {
@@ -149,7 +153,7 @@ export function useRealtime({
             const nextStatus = connectionStatus(connection);
             setStatus(nextStatus);
 
-            if (nextStatus === "connected") {
+            if (nextStatus === 'connected') {
                 stopPolling();
                 void poll();
             } else {
@@ -157,18 +161,18 @@ export function useRealtime({
             }
         };
 
-        let echo: Echo<"reverb"> | null = null;
+        let echo: Echo<'reverb'> | null = null;
 
         try {
             echo = createEcho();
         } catch {
-            setStatus("offline");
+            setStatus('offline');
             startPolling();
         }
 
         if (echo === null) {
             if (pollTimer === null) {
-                setStatus("polling");
+                setStatus('polling');
                 startPolling();
             }
 
@@ -178,21 +182,25 @@ export function useRealtime({
             };
         }
 
-        const unsubscribeConnection = echo.connector.onConnectionChange(handleConnectionChange);
+        const unsubscribeConnection = echo.connector.onConnectionChange(
+            handleConnectionChange,
+        );
         const realtimeChannel =
-            channelType === "private" ? echo.private(channel) : echo.channel(channel);
+            channelType === 'private'
+                ? echo.private(channel)
+                : echo.channel(channel);
 
         realtimeChannel.listen(event, (payload: unknown) => {
             if (disposed) {
                 return;
             }
 
-            setStatus("connected");
+            setStatus('connected');
             onEventEvent(payload);
         });
         realtimeChannel.error(() => {
             if (!disposed) {
-                setStatus("offline");
+                setStatus('offline');
                 startPolling();
             }
         });
