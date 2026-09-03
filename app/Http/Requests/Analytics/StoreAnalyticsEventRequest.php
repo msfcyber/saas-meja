@@ -17,7 +17,7 @@ class StoreAnalyticsEventRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'event' => ['required', 'string', Rule::in(AnalyticsEventService::EVENTS)],
+            'event' => ['required', 'string', Rule::in(AnalyticsEventService::PUBLIC_EVENTS)],
             'qr_token' => ['required', 'string', 'size:64', 'regex:/\A[a-fA-F0-9]+\z/'],
             'session_id' => ['required', 'string', 'max:120', 'regex:/\A[A-Za-z0-9._:-]+\z/'],
             'product_id' => ['nullable', 'integer', 'min:1'],

@@ -73,6 +73,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('tenants/{tenant}/status', [PlatformManagementController::class, 'updateTenantStatus'])->name('platform.tenants.status.update');
         Route::patch('subscriptions/{subscription}', [PlatformManagementController::class, 'updateSubscription'])->name('platform.subscriptions.update');
         Route::patch('invoices/{invoice}/void', [PlatformManagementController::class, 'voidInvoice'])->name('platform.invoices.void');
+        Route::post('payments/{payment}/reconcile', [PlatformManagementController::class, 'reconcilePayment'])->name('platform.payments.reconcile');
     });
 
     Route::middleware('tenant.required')->group(function () {

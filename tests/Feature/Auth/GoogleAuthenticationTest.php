@@ -64,3 +64,19 @@ test('google callback links an existing account by verified email', function () 
     expect($user->fresh()->google_id)->toBe('google-user-456')
         ->and($user->fresh()->email_verified_at)->not->toBeNull();
 });
+
+test('google callback sends platform admins to the platform dashboard', function () {
+    $user = User::factory()->platformAdmin()->create(['email' => 'admin@example.com']);
+    $profile = Mockery::mock(SocialiteUser::class);
+    $profile->shouldReceive('getId')->andReturn('google-admin-789');
+    $profile->shouldReceive('getEmail')->andReturn($user->email);
+    $profile->shouldReceive('getName')->andReturn($user->name);
+    $profile->shouldReceive('getNickname')->andReturn(null);
+
+    $provider = Mockery::mock(Provider::class);
+    $provider->shouldReceive('user')->once()->andReturn($profile);
+    Socialite::shouldReceive('driver')->once()->with('google')->andReturn($provider);
+
+    $this->get(route('auth.google.callback'))
+        ->assertRedirect(route('platform.dashboard'));
+});

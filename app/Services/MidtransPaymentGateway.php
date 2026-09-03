@@ -60,6 +60,7 @@ final class MidtransPaymentGateway implements PaymentGateway
                 'gross_amount' => (int) $payment->amount,
             ],
             'item_details' => $itemDetails,
+            'enabled_payments' => $this->enabledPayments((string) $payment->method),
             'callbacks' => ['finish' => $finishUrl],
         ];
 
@@ -200,6 +201,17 @@ final class MidtransPaymentGateway implements PaymentGateway
         }
 
         return $serverKey;
+    }
+
+    /** @return list<string> */
+    private function enabledPayments(string $method): array
+    {
+        return match ($method) {
+            'qris' => ['qris'],
+            'ewallet' => ['gopay', 'shopeepay'],
+            'va' => ['bca_va', 'bni_va', 'bri_va', 'permata_va', 'other_va'],
+            default => throw new PaymentGatewayException('Metode pembayaran tidak didukung.'),
+        };
     }
 
     /**

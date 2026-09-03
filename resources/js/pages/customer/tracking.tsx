@@ -8,6 +8,7 @@ import {
     ReceiptText,
     ShoppingBag,
     UtensilsCrossed,
+    WalletCards,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { CustomerHeader } from '@/components/customer-header';
@@ -35,6 +36,14 @@ const statusFlow = [
     { status: 'served', label: 'Sudah disajikan' },
     { status: 'completed', label: 'Selesai' },
 ] as const;
+
+const paymentMethods = [
+    { id: 'qris', label: 'QRIS' },
+    { id: 'ewallet', label: 'E-wallet' },
+    { id: 'va', label: 'Virtual account' },
+] as const;
+
+type PaymentMethodId = (typeof paymentMethods)[number]['id'];
 
 const demoOrder: CustomerOrder = {
     id: 0,
@@ -136,6 +145,24 @@ const statusCopy: Record<
         headline: 'Terima kasih sudah memesan.',
         description: 'Pesanan ini sudah selesai.',
     },
+    cancelled: {
+        label: 'Dibatalkan',
+        headline: 'Pesanan ini dibatalkan.',
+        description:
+            'Pesanan tidak akan diproses lebih lanjut. Hubungi staf outlet jika kamu membutuhkan bantuan.',
+    },
+    rejected: {
+        label: 'Ditolak outlet',
+        headline: 'Pesanan ini tidak dapat diproses.',
+        description:
+            'Outlet menolak pesanan ini. Hubungi staf outlet untuk mengetahui detailnya.',
+    },
+    refunded: {
+        label: 'Dana dikembalikan',
+        headline: 'Pesanan ini sudah dikembalikan.',
+        description:
+            'Pembayaran untuk pesanan ini telah dikembalikan melalui payment gateway.',
+    },
 };
 
 const formatTime = (value: string | null | undefined) => {
@@ -196,6 +223,13 @@ export default function Tracking({ access, order, realtime }: Props) {
         order ?? null,
     );
     const [paymentStarting, setPaymentStarting] = useState(false);
+    const [selectedPaymentMethod, setSelectedPaymentMethod] =
+        useState<PaymentMethodId>(
+            order?.payment_method === 'ewallet' ||
+                order?.payment_method === 'va'
+                ? order.payment_method
+                : 'qris',
+        );
     const [paymentError, setPaymentError] = useState<string | null>(null);
     const [trackingError, setTrackingError] = useState<string | null>(null);
     const [trackingRetrying, setTrackingRetrying] = useState(false);
@@ -205,6 +239,14 @@ export default function Tracking({ access, order, realtime }: Props) {
     useEffect(() => {
         setLiveOrder(order ?? null);
     }, [order]);
+
+    useEffect(() => {
+        const method = liveOrder?.payment_method;
+
+        if (method === 'qris' || method === 'ewallet' || method === 'va') {
+            setSelectedPaymentMethod(method);
+        }
+    }, [liveOrder?.payment_method]);
 
     useEffect(() => {
         if (!liveOrder || liveOrder.status === announcedStatus.current) {
@@ -286,8 +328,14 @@ export default function Tracking({ access, order, realtime }: Props) {
                 realtime.payment_start_url,
                 {
                     method: 'POST',
-                    headers: { Accept: 'application/json' },
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                    },
                     credentials: 'same-origin',
+                    body: JSON.stringify({
+                        payment_method: selectedPaymentMethod,
+                    }),
                 },
             );
             const body = (await response.json()) as {
@@ -432,12 +480,18 @@ export default function Tracking({ access, order, realtime }: Props) {
     const currentIndex = statusFlow.findIndex(
         (step) => step.status === displayOrder.status,
     );
+    const isTerminalException = ['cancelled', 'rejected', 'refunded'].includes(
+        displayOrder.status,
+    );
     const historyByStatus = new Map(
         displayOrder.status_history.map((entry) => [entry.to_status, entry]),
     );
     const canStartPayment =
-        displayOrder.payment_status === 'pending' ||
-        displayOrder.payment_status === 'expired';
+        (displayOrder.status === 'awaiting_payment' ||
+            displayOrder.status === 'payment_expired') &&
+        (displayOrder.payment_status === 'pending' ||
+            displayOrder.payment_status === 'expired' ||
+            displayOrder.payment_status === 'failed');
 
     return (
         <>
@@ -520,6 +574,25 @@ export default function Tracking({ access, order, realtime }: Props) {
                                     ? 'Memperbarui...'
                                     : 'Coba lagi'}
                             </button>
+                        </div>
+                    )}
+
+                    {isTerminalException && (
+                        <div
+                            className="border-destructive/25 bg-destructive/5 mt-6 flex items-start gap-3 rounded-2xl border p-4 text-sm"
+                            role="status"
+                        >
+                            <WalletCards
+                                className="text-destructive mt-0.5 size-5 shrink-0"
+                                aria-hidden="true"
+                            />
+                            <div>
+                                <p className="font-bold">{copy.label}</p>
+                                <p className="text-muted-foreground mt-1 leading-6">
+                                    Status ini adalah hasil akhir dan tidak
+                                    dapat dilanjutkan dari halaman tracking.
+                                </p>
+                            </div>
                         </div>
                     )}
 
@@ -682,18 +755,51 @@ export default function Tracking({ access, order, realtime }: Props) {
                             <p className="text-primary text-xs font-bold tracking-[0.14em] uppercase">
                                 {displayOrder.payment_status === 'expired'
                                     ? 'Pembayaran kedaluwarsa'
-                                    : 'Pembayaran belum selesai'}
+                                    : displayOrder.payment_status === 'failed'
+                                      ? 'Pembayaran gagal'
+                                      : 'Pembayaran belum selesai'}
                             </p>
                             <h2 className="font-display mt-2 text-2xl font-bold">
                                 {displayOrder.payment_status === 'expired'
                                     ? 'Buat pembayaran baru.'
-                                    : 'Lanjutkan pembayaranmu.'}
+                                    : displayOrder.payment_status === 'failed'
+                                      ? 'Coba metode pembayaran lain.'
+                                      : 'Lanjutkan pembayaranmu.'}
                             </h2>
                             <p className="text-muted-foreground mt-2 max-w-xl text-sm leading-6">
                                 {displayOrder.payment_status === 'expired'
                                     ? 'Payment sebelumnya tidak lagi berlaku. Order dan detail pesananmu tetap tersimpan.'
-                                    : 'Order belum masuk ke antrean dapur sampai pembayaran diverifikasi.'}
+                                    : displayOrder.payment_status === 'failed'
+                                      ? 'Pembayaran sebelumnya gagal. Order dan detail pesananmu tetap tersimpan, sehingga kamu dapat membuat payment pengganti.'
+                                      : 'Order belum masuk ke antrean dapur sampai pembayaran diverifikasi.'}
                             </p>
+                            {(displayOrder.payment_status === 'expired' ||
+                                displayOrder.payment_status === 'failed') && (
+                                <label className="mt-4 grid max-w-sm gap-1.5">
+                                    <span className="text-muted-foreground text-xs font-bold">
+                                        Metode pembayaran baru
+                                    </span>
+                                    <select
+                                        value={selectedPaymentMethod}
+                                        onChange={(event) =>
+                                            setSelectedPaymentMethod(
+                                                event.target
+                                                    .value as PaymentMethodId,
+                                            )
+                                        }
+                                        className="bg-background focus:ring-ring min-h-11 rounded-xl border px-3 text-sm outline-none focus:ring-2"
+                                    >
+                                        {paymentMethods.map((method) => (
+                                            <option
+                                                key={method.id}
+                                                value={method.id}
+                                            >
+                                                {method.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                            )}
                             <button
                                 type="button"
                                 onClick={() => void continuePayment()}
@@ -702,8 +808,10 @@ export default function Tracking({ access, order, realtime }: Props) {
                             >
                                 {paymentStarting
                                     ? 'Membuka pembayaran...'
-                                    : displayOrder.payment_status === 'expired'
-                                      ? 'Buat payment baru'
+                                    : displayOrder.payment_status ===
+                                            'expired' ||
+                                        displayOrder.payment_status === 'failed'
+                                      ? 'Coba pembayaran lagi'
                                       : 'Bayar sekarang'}
                                 <ChevronRight
                                     className="size-4"

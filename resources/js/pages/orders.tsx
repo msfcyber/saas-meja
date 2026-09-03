@@ -70,7 +70,19 @@ type Props = {
     realtime?: { channel: string } | null;
     notifications: NotificationPreferences;
     notification_orders: OrderNotification[];
-    filters: { search: string; status: FilterStatus };
+    filters: {
+        search: string;
+        status: FilterStatus;
+        table_id: number | null;
+        from: string | null;
+        to: string | null;
+    };
+    tables: Array<{
+        id: number;
+        name: string;
+        code: string;
+        is_active: boolean;
+    }>;
     counts: Record<FilterStatus, number>;
     orders: StaffOrder[];
 };
@@ -179,10 +191,14 @@ export default function Orders({
     notifications,
     notification_orders: notificationOrders,
     filters,
+    tables,
     counts,
     orders,
 }: Props) {
     const [search, setSearch] = useState(filters.search);
+    const [tableId, setTableId] = useState(filters.table_id?.toString() ?? '');
+    const [fromDate, setFromDate] = useState(filters.from ?? '');
+    const [toDate, setToDate] = useState(filters.to ?? '');
     const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
     const [pendingRefundOrderId, setPendingRefundOrderId] = useState<
         number | null
@@ -388,6 +404,9 @@ export default function Orders({
             {
                 search: search || undefined,
                 status: status === 'active' ? undefined : status,
+                table_id: tableId || undefined,
+                from: fromDate || undefined,
+                to: toDate || undefined,
             },
             { preserveState: true, preserveScroll: true, replace: true },
         );
@@ -624,6 +643,68 @@ export default function Orders({
                                 <Filter className="size-4" aria-hidden="true" />
                                 Terapkan filter
                             </button>
+                        </div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                            <label
+                                htmlFor="order-table-filter"
+                                className="grid gap-1.5"
+                            >
+                                <span className="text-muted-foreground text-[10px] font-bold tracking-[0.12em] uppercase">
+                                    Meja
+                                </span>
+                                <select
+                                    id="order-table-filter"
+                                    value={tableId}
+                                    onChange={(event) =>
+                                        setTableId(event.target.value)
+                                    }
+                                    className="border-border/80 bg-background text-foreground focus:ring-ring min-h-11 rounded-xl border px-3 text-sm outline-none focus:ring-2"
+                                >
+                                    <option value="">Semua meja</option>
+                                    {tables.map((table) => (
+                                        <option key={table.id} value={table.id}>
+                                            {table.name} ({table.code})
+                                            {!table.is_active
+                                                ? ' · nonaktif'
+                                                : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                            <label
+                                htmlFor="order-from-filter"
+                                className="grid gap-1.5"
+                            >
+                                <span className="text-muted-foreground text-[10px] font-bold tracking-[0.12em] uppercase">
+                                    Dari tanggal
+                                </span>
+                                <Input
+                                    id="order-from-filter"
+                                    type="date"
+                                    value={fromDate}
+                                    onChange={(event) =>
+                                        setFromDate(event.target.value)
+                                    }
+                                    className="border-border/80 bg-background min-h-11 rounded-xl"
+                                />
+                            </label>
+                            <label
+                                htmlFor="order-to-filter"
+                                className="grid gap-1.5"
+                            >
+                                <span className="text-muted-foreground text-[10px] font-bold tracking-[0.12em] uppercase">
+                                    Sampai tanggal
+                                </span>
+                                <Input
+                                    id="order-to-filter"
+                                    type="date"
+                                    value={toDate}
+                                    onChange={(event) =>
+                                        setToDate(event.target.value)
+                                    }
+                                    className="border-border/80 bg-background min-h-11 rounded-xl"
+                                />
+                            </label>
                         </div>
                     </div>
                 </header>

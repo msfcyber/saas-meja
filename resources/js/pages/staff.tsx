@@ -466,10 +466,10 @@ export default function Staff({
                                     />
                                 </div>
                                 <p className="bg-secondary/70 text-secondary-foreground rounded-xl px-3 py-2 text-xs leading-5">
-                                    Akun baru memakai password awal{' '}
-                                    <strong>password</strong>. Bagikan secara
-                                    aman dan minta staf mengubahnya setelah
-                                    masuk.
+                                    Akun baru menerima link pengaturan password
+                                    melalui email. Password awal tidak dibagikan
+                                    atau disimpan dalam bentuk yang dapat
+                                    dibaca.
                                 </p>
                             </>
                         )}

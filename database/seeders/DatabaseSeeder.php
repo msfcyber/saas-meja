@@ -14,10 +14,16 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([
+        $seeders = [
             RolesAndPermissionsSeeder::class,
             PlansSeeder::class,
-            DemoTenantSeeder::class,
-        ]);
+            SuperAdminSeeder::class,
+        ];
+
+        if (app()->environment(['local', 'testing'])) {
+            $seeders[] = DemoTenantSeeder::class;
+        }
+
+        $this->call($seeders);
     }
 }

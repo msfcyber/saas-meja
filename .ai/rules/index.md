@@ -5,7 +5,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | Applies to | Rule file |
 | --- | --- |
 | app/Models/StaffNotificationPreference.php | .ai/rules/app-models.md |
-| app/Services/{MidtransPaymentGateway.php,MidtransWebhookService.php} | .ai/rules/app-services.md |
+| app/Services/{MidtransPaymentGateway.php,MidtransWebhookService.php,PaymentGatewayCredentialService.php}, app/Services/PublicOrderService.php | .ai/rules/app-services.md |
 | app/**/Public*.php | .ai/rules/app.md |
 | app/Models/**,database/migrations/**,config/permission.php | .ai/rules/migrations.md |
 | app/Http/Controllers/PublicMenuController.php,app/Http/Controllers/TableQrCodeController.php,app/Services/TableQrCodeService.php,routes/web.php,app/Models/TableQrToken.php | .ai/rules/models.md |

@@ -110,6 +110,10 @@ final class GoogleAuthenticationController extends Controller
         Auth::login($user);
         request()->session()->regenerate();
 
+        if ((bool) $user->is_platform_admin) {
+            return to_route('platform.dashboard');
+        }
+
         return $user->tenants()->wherePivot('status', 'active')->exists()
             ? to_route('dashboard')
             : to_route('onboarding.create');

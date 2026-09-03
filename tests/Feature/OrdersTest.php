@@ -14,6 +14,7 @@ use App\Models\StaffNotificationPreference;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\OrderStatusService;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Event;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\PermissionRegistrar;
@@ -71,6 +72,43 @@ test('staff order board only exposes orders from the active outlet', function ()
             ->where('notifications.sound_enabled', true)
             ->has('orders', 1)
             ->where('orders.0.id', $visibleOrder->id));
+});
+
+test('staff order board filters orders by table and outlet-local date range', function () {
+    $workspace = createOrderBoardWorkspace();
+    $secondTable = DiningTable::factory()->for($workspace['outlet'])->create([
+        'name' => 'Meja Selatan',
+    ]);
+    $localNow = CarbonImmutable::now($workspace['outlet']->timezone);
+    $today = $localNow->toDateString();
+
+    $targetOrder = Order::factory()->for($workspace['table'], 'table')->create([
+        'tenant_id' => $workspace['tenant']->id,
+        'outlet_id' => $workspace['outlet']->id,
+        'status' => OrderStatus::Paid,
+        'created_at' => $localNow->setTime(10, 0)->setTimezone('UTC'),
+    ]);
+    Order::factory()->for($secondTable, 'table')->create([
+        'tenant_id' => $workspace['tenant']->id,
+        'outlet_id' => $workspace['outlet']->id,
+        'status' => OrderStatus::Paid,
+        'created_at' => $localNow->subDay()->setTime(10, 0)->setTimezone('UTC'),
+    ]);
+
+    $this->actingAs($workspace['user'])
+        ->get(route('orders', [
+            'table_id' => $workspace['table']->id,
+            'from' => $today,
+            'to' => $today,
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('orders', 1)
+            ->where('orders.0.id', $targetOrder->id)
+            ->where('filters.table_id', $workspace['table']->id)
+            ->where('filters.from', $today)
+            ->where('filters.to', $today)
+            ->has('tables', 2));
 });
 
 test('staff with payment access can print a paid order receipt from the active outlet', function () {

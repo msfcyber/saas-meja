@@ -3,11 +3,16 @@ import {
     Activity,
     Building2,
     CheckCircle2,
+    ChevronLeft,
+    ChevronRight,
     CreditCard,
+    Eye,
     FileClock,
     Pencil,
     Plus,
     ReceiptText,
+    RefreshCw,
+    Search,
     ShieldCheck,
     Store,
 } from 'lucide-react';
@@ -34,6 +39,8 @@ type Overview = {
     trialing_subscriptions: number;
     past_due_subscriptions: number;
     pending_invoices: number;
+    pending_payments: number;
+    unprocessed_payment_events: number;
     audit_events_24h: number;
     payment_events_24h: number;
 };
@@ -59,7 +66,14 @@ type Tenant = {
     slug: string;
     status: string;
     timezone: string;
+    created_at: string | null;
     outlets: number;
+    active_outlets: number;
+    active_members: number;
+    owner: {
+        name: string;
+        email: string;
+    } | null;
     subscription: {
         status: string;
         plan: string | null;
@@ -73,18 +87,37 @@ type AuditLog = {
     tenant: string;
     actor: string;
     resource: string | null;
+    request_id: string | null;
     created_at: string | null;
 };
 
 type PaymentEvent = {
     id: number;
+    event_id: string;
     tenant: string;
+    outlet: string | null;
     provider: string;
     event_type: string;
+    order_number: string | null;
+    payment_status: string | null;
     amount: number;
     currency: string;
     processed: boolean;
+    processed_at: string | null;
     occurred_at: string | null;
+};
+
+type PendingPayment = {
+    id: number;
+    tenant: string;
+    outlet: string | null;
+    order_number: string | null;
+    provider: string | null;
+    provider_reference: string | null;
+    amount: number;
+    currency: string;
+    last_webhook_at: string | null;
+    created_at: string | null;
 };
 
 type PlatformSubscription = {
@@ -114,6 +147,21 @@ type AnalyticsSummary = {
     events: Array<{ event: string; total: number }>;
 };
 
+type Pagination = {
+    page: number;
+    per_page: number;
+    total: number;
+    last_page: number;
+};
+
+type PlatformFilters = {
+    tenant_search: string;
+    tenant_status: string;
+    payment_event_search: string;
+    payment_event_status: 'all' | 'processed' | 'pending';
+    audit_search: string;
+};
+
 type PlanForm = {
     code: string;
     name: string;
@@ -133,6 +181,10 @@ type PlanForm = {
 
 type Props = {
     overview: Overview;
+    filters: PlatformFilters;
+    tenant_pagination: Pagination;
+    payment_event_pagination: Pagination;
+    audit_pagination: Pagination;
     plans: Plan[];
     tenants: Tenant[];
     subscriptions: PlatformSubscription[];
@@ -140,6 +192,7 @@ type Props = {
     analytics: AnalyticsSummary;
     audit_logs: AuditLog[];
     payment_events: PaymentEvent[];
+    pending_payments: PendingPayment[];
 };
 
 const emptyPlanForm: PlanForm = {
@@ -201,11 +254,15 @@ function statusLabel(value: string): string {
         {
             active: 'Aktif',
             trialing: 'Trial',
+            pending: 'Menunggu',
+            paid: 'Berhasil',
+            failed: 'Gagal',
             past_due: 'Past due',
             suspended: 'Ditangguhkan',
             inactive: 'Tidak aktif',
             expired: 'Berakhir',
             cancelled: 'Dibatalkan',
+            refunded: 'Refund',
         }[value] ?? value
     );
 }
@@ -280,7 +337,7 @@ function PlatformSubscriptionEditor({
 }
 
 function statusClass(value: string): string {
-    if (value === 'active' || value === 'trialing') {
+    if (value === 'active' || value === 'trialing' || value === 'paid') {
         return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
     }
 
@@ -288,11 +345,77 @@ function statusClass(value: string): string {
         return 'bg-amber-500/10 text-amber-700 dark:text-amber-300';
     }
 
+    if (value === 'failed') {
+        return 'bg-destructive/10 text-destructive';
+    }
+
     return 'bg-muted text-muted-foreground';
+}
+
+function PaginationControls({
+    pagination,
+    onChange,
+    label,
+}: {
+    pagination: Pagination;
+    onChange: (page: number) => void;
+    label: string;
+}) {
+    if (pagination.last_page <= 1) {
+        return null;
+    }
+
+    const first =
+        pagination.total === 0
+            ? 0
+            : (pagination.page - 1) * pagination.per_page + 1;
+    const last = Math.min(
+        pagination.total,
+        pagination.page * pagination.per_page,
+    );
+
+    return (
+        <div className="text-muted-foreground flex flex-col gap-3 border-t pt-4 text-xs sm:flex-row sm:items-center sm:justify-between">
+            <span>
+                {label}: {first}-{last} dari {pagination.total}
+            </span>
+            <div className="flex items-center gap-2">
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onChange(pagination.page - 1)}
+                    disabled={pagination.page <= 1}
+                    aria-label={`Halaman ${label} sebelumnya`}
+                >
+                    <ChevronLeft aria-hidden="true" />
+                    Sebelumnya
+                </Button>
+                <span className="text-foreground px-1 font-semibold">
+                    {pagination.page} / {pagination.last_page}
+                </span>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onChange(pagination.page + 1)}
+                    disabled={pagination.page >= pagination.last_page}
+                    aria-label={`Halaman ${label} berikutnya`}
+                >
+                    Berikutnya
+                    <ChevronRight aria-hidden="true" />
+                </Button>
+            </div>
+        </div>
+    );
 }
 
 export default function PlatformDashboard({
     overview,
+    filters,
+    tenant_pagination: tenantPagination,
+    payment_event_pagination: paymentEventPagination,
+    audit_pagination: auditPagination,
     plans,
     tenants,
     subscriptions,
@@ -300,9 +423,20 @@ export default function PlatformDashboard({
     analytics,
     audit_logs: auditLogs,
     payment_events: paymentEvents,
+    pending_payments: pendingPayments,
 }: Props) {
     const [planDialogOpen, setPlanDialogOpen] = useState(false);
     const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+    const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+    const [tenantSearch, setTenantSearch] = useState(filters.tenant_search);
+    const [tenantStatus, setTenantStatus] = useState(filters.tenant_status);
+    const [paymentEventSearch, setPaymentEventSearch] = useState(
+        filters.payment_event_search,
+    );
+    const [paymentEventStatus, setPaymentEventStatus] = useState(
+        filters.payment_event_status,
+    );
+    const [auditSearch, setAuditSearch] = useState(filters.audit_search);
     const planForm = useForm<PlanForm>(emptyPlanForm);
     const metrics = [
         {
@@ -329,7 +463,38 @@ export default function PlatformDashboard({
             detail: `${overview.payment_events_24h} payment event`,
             icon: Activity,
         },
+        {
+            label: 'Payment pending',
+            value: overview.pending_payments,
+            detail: `${overview.unprocessed_payment_events} webhook belum diproses`,
+            icon: RefreshCw,
+        },
     ];
+
+    function visitPlatform(
+        overrides: Record<string, string | number | null> = {},
+    ) {
+        router.get(
+            '/platform',
+            {
+                tenant_search: tenantSearch.trim() || null,
+                tenant_status: tenantStatus === 'all' ? null : tenantStatus,
+                tenant_page: tenantPagination.page,
+                payment_event_search: paymentEventSearch.trim() || null,
+                payment_event_status:
+                    paymentEventStatus === 'all' ? null : paymentEventStatus,
+                payment_event_page: paymentEventPagination.page,
+                audit_search: auditSearch.trim() || null,
+                audit_page: auditPagination.page,
+                ...overrides,
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+            },
+        );
+    }
 
     function openCreatePlan() {
         setEditingPlan(null);
@@ -394,6 +559,14 @@ export default function PlatformDashboard({
         );
     }
 
+    function reconcilePayment(payment: PendingPayment) {
+        router.post(
+            `/platform/payments/${payment.id}/reconcile`,
+            {},
+            { preserveScroll: true },
+        );
+    }
+
     return (
         <>
             <Head title="Platform" />
@@ -423,7 +596,7 @@ export default function PlatformDashboard({
 
                 <section
                     aria-label="Ringkasan platform"
-                    className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+                    className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
                 >
                     {metrics.map((metric) => (
                         <article
@@ -581,11 +754,11 @@ export default function PlatformDashboard({
                     <div className="flex items-start justify-between gap-4">
                         <div>
                             <h2 className="font-display text-xl font-bold">
-                                Tenant terbaru
+                                Tenant platform
                             </h2>
                             <p className="text-muted-foreground mt-1 text-sm">
-                                Maksimal 12 tenant terakhir dan status
-                                subscription terkini.
+                                Cari tenant berdasarkan nama, slug, atau email
+                                owner; status dapat diubah dari tabel.
                             </p>
                         </div>
                         <Building2
@@ -593,13 +766,85 @@ export default function PlatformDashboard({
                             aria-hidden="true"
                         />
                     </div>
+                    <form
+                        className="bg-muted/20 mt-6 flex flex-col gap-3 rounded-2xl border p-3 sm:flex-row sm:items-end"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            visitPlatform({ tenant_page: 1 });
+                        }}
+                    >
+                        <div className="grid flex-1 gap-1.5">
+                            <Label htmlFor="tenant-search" className="text-xs">
+                                Cari tenant
+                            </Label>
+                            <div className="relative">
+                                <Search
+                                    className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+                                    aria-hidden="true"
+                                />
+                                <Input
+                                    id="tenant-search"
+                                    value={tenantSearch}
+                                    onChange={(event) =>
+                                        setTenantSearch(event.target.value)
+                                    }
+                                    placeholder="Nama, slug, atau email owner"
+                                    className="pl-9"
+                                />
+                            </div>
+                        </div>
+                        <div className="grid gap-1.5 sm:w-44">
+                            <Label htmlFor="tenant-status" className="text-xs">
+                                Status tenant
+                            </Label>
+                            <select
+                                id="tenant-status"
+                                value={tenantStatus}
+                                onChange={(event) =>
+                                    setTenantStatus(event.target.value)
+                                }
+                                className="bg-background h-9 rounded-md border px-3 text-sm"
+                            >
+                                <option value="all">Semua status</option>
+                                <option value="active">Aktif</option>
+                                <option value="suspended">Ditangguhkan</option>
+                                <option value="inactive">Tidak aktif</option>
+                            </select>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button type="submit" size="sm">
+                                <Search aria-hidden="true" />
+                                Filter
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                    setTenantSearch('');
+                                    setTenantStatus('all');
+                                    visitPlatform({
+                                        tenant_search: null,
+                                        tenant_status: null,
+                                        tenant_page: 1,
+                                    });
+                                }}
+                                disabled={
+                                    tenantSearch === '' &&
+                                    tenantStatus === 'all'
+                                }
+                            >
+                                Reset
+                            </Button>
+                        </div>
+                    </form>
                     {tenants.length === 0 ? (
-                        <p className="text-muted-foreground mt-7 rounded-2xl border border-dashed p-6 text-sm">
-                            Belum ada tenant.
+                        <p className="text-muted-foreground mt-5 rounded-2xl border border-dashed p-6 text-sm">
+                            Tidak ada tenant yang cocok dengan filter.
                         </p>
                     ) : (
-                        <div className="mt-7 overflow-x-auto">
-                            <table className="w-full min-w-[760px] text-left text-sm">
+                        <div className="mt-5 overflow-x-auto">
+                            <table className="w-full min-w-[980px] text-left text-sm">
                                 <thead className="text-muted-foreground border-b text-xs">
                                     <tr>
                                         <th
@@ -630,7 +875,19 @@ export default function PlatformDashboard({
                                             scope="col"
                                             className="pb-3 font-semibold"
                                         >
+                                            Owner
+                                        </th>
+                                        <th
+                                            scope="col"
+                                            className="pb-3 font-semibold"
+                                        >
                                             Periode
+                                        </th>
+                                        <th
+                                            scope="col"
+                                            className="pb-3 text-right font-semibold"
+                                        >
+                                            Aksi
                                         </th>
                                     </tr>
                                 </thead>
@@ -699,7 +956,28 @@ export default function PlatformDashboard({
                                                 )}
                                             </td>
                                             <td className="text-muted-foreground py-4">
-                                                {tenant.outlets}
+                                                {tenant.active_outlets} aktif /{' '}
+                                                {tenant.outlets} total
+                                                <span className="mt-1 block text-xs">
+                                                    {tenant.active_members}{' '}
+                                                    member aktif
+                                                </span>
+                                            </td>
+                                            <td className="py-4">
+                                                {tenant.owner ? (
+                                                    <div className="grid gap-1">
+                                                        <span className="font-semibold">
+                                                            {tenant.owner.name}
+                                                        </span>
+                                                        <span className="text-muted-foreground text-xs">
+                                                            {tenant.owner.email}
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-muted-foreground">
+                                                        Belum ada owner aktif
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="text-muted-foreground py-4">
                                                 {tenant.subscription
@@ -710,12 +988,34 @@ export default function PlatformDashboard({
                                                       )
                                                     : '-'}
                                             </td>
+                                            <td className="py-4 text-right">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        setSelectedTenant(
+                                                            tenant,
+                                                        )
+                                                    }
+                                                >
+                                                    <Eye aria-hidden="true" />
+                                                    Detail
+                                                </Button>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
                     )}
+                    <PaginationControls
+                        pagination={tenantPagination}
+                        onChange={(page) =>
+                            visitPlatform({ tenant_page: page })
+                        }
+                        label="Tenant"
+                    />
                 </section>
 
                 <div className="mt-5 grid gap-5 xl:grid-cols-2">
@@ -934,12 +1234,60 @@ export default function PlatformDashboard({
                                 aria-hidden="true"
                             />
                         </div>
+                        <form
+                            className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-end"
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                visitPlatform({ audit_page: 1 });
+                            }}
+                        >
+                            <div className="relative flex-1">
+                                <Label
+                                    htmlFor="audit-search"
+                                    className="sr-only"
+                                >
+                                    Cari audit log
+                                </Label>
+                                <Search
+                                    className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+                                    aria-hidden="true"
+                                />
+                                <Input
+                                    id="audit-search"
+                                    value={auditSearch}
+                                    onChange={(event) =>
+                                        setAuditSearch(event.target.value)
+                                    }
+                                    placeholder="Event, tenant, resource, atau request ID"
+                                    className="pl-9"
+                                />
+                            </div>
+                            <Button type="submit" size="sm">
+                                <Search aria-hidden="true" />
+                                Filter
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                    setAuditSearch('');
+                                    visitPlatform({
+                                        audit_search: null,
+                                        audit_page: 1,
+                                    });
+                                }}
+                                disabled={auditSearch === ''}
+                            >
+                                Reset
+                            </Button>
+                        </form>
                         {auditLogs.length === 0 ? (
-                            <p className="text-muted-foreground mt-7 text-sm">
-                                Belum ada audit event.
+                            <p className="text-muted-foreground mt-5 rounded-2xl border border-dashed p-6 text-sm">
+                                Tidak ada audit event yang cocok.
                             </p>
                         ) : (
-                            <div className="mt-7 grid gap-4">
+                            <div className="mt-5 grid gap-4">
                                 {auditLogs.map((audit) => (
                                     <div
                                         key={audit.id}
@@ -959,22 +1307,34 @@ export default function PlatformDashboard({
                                             <p className="text-muted-foreground mt-1 text-xs">
                                                 {formatDate(audit.created_at)}
                                             </p>
+                                            {audit.request_id && (
+                                                <p className="text-muted-foreground mt-1 truncate text-xs">
+                                                    Request {audit.request_id}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         )}
+                        <PaginationControls
+                            pagination={auditPagination}
+                            onChange={(page) =>
+                                visitPlatform({ audit_page: page })
+                            }
+                            label="Audit"
+                        />
                     </section>
 
                     <section className="bg-card rounded-[1.5rem] border p-6 sm:p-8">
                         <div className="flex items-start justify-between gap-4">
                             <div>
                                 <h2 className="font-display text-xl font-bold">
-                                    Payment events
+                                    Payment & webhook
                                 </h2>
                                 <p className="text-muted-foreground mt-1 text-sm">
-                                    Event gateway terakhir dan status
-                                    pemrosesannya.
+                                    Pantau event gateway dan minta rekonsiliasi
+                                    ulang untuk payment pending.
                                 </p>
                             </div>
                             <Activity
@@ -982,12 +1342,178 @@ export default function PlatformDashboard({
                                 aria-hidden="true"
                             />
                         </div>
+                        <form
+                            className="bg-muted/20 mt-6 flex flex-col gap-3 rounded-2xl border p-3 sm:flex-row sm:items-end"
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                visitPlatform({ payment_event_page: 1 });
+                            }}
+                        >
+                            <div className="grid flex-1 gap-1.5">
+                                <Label
+                                    htmlFor="payment-event-search"
+                                    className="text-xs"
+                                >
+                                    Cari event
+                                </Label>
+                                <div className="relative">
+                                    <Search
+                                        className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+                                        aria-hidden="true"
+                                    />
+                                    <Input
+                                        id="payment-event-search"
+                                        value={paymentEventSearch}
+                                        onChange={(event) =>
+                                            setPaymentEventSearch(
+                                                event.target.value,
+                                            )
+                                        }
+                                        placeholder="Provider, event ID, atau tipe event"
+                                        className="pl-9"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid gap-1.5 sm:w-36">
+                                <Label
+                                    htmlFor="payment-event-status"
+                                    className="text-xs"
+                                >
+                                    Pemrosesan
+                                </Label>
+                                <select
+                                    id="payment-event-status"
+                                    value={paymentEventStatus}
+                                    onChange={(event) =>
+                                        setPaymentEventStatus(
+                                            event.target
+                                                .value as PlatformFilters['payment_event_status'],
+                                        )
+                                    }
+                                    className="bg-background h-9 rounded-md border px-3 text-sm"
+                                >
+                                    <option value="all">Semua</option>
+                                    <option value="processed">Diproses</option>
+                                    <option value="pending">Menunggu</option>
+                                </select>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button type="submit" size="sm">
+                                    <Search aria-hidden="true" />
+                                    Filter
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                        setPaymentEventSearch('');
+                                        setPaymentEventStatus('all');
+                                        visitPlatform({
+                                            payment_event_search: null,
+                                            payment_event_status: null,
+                                            payment_event_page: 1,
+                                        });
+                                    }}
+                                    disabled={
+                                        paymentEventSearch === '' &&
+                                        paymentEventStatus === 'all'
+                                    }
+                                >
+                                    Reset
+                                </Button>
+                            </div>
+                        </form>
+
+                        {pendingPayments.length > 0 && (
+                            <div className="bg-secondary/60 mt-5 rounded-2xl p-4">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <p className="font-semibold">
+                                            Payment perlu dicek ulang
+                                        </p>
+                                        <p className="text-muted-foreground mt-1 text-xs">
+                                            Maksimal 12 payment pending terbaru;
+                                            action hanya tersedia untuk
+                                            Midtrans.
+                                        </p>
+                                    </div>
+                                    <RefreshCw
+                                        className="text-primary size-5"
+                                        aria-hidden="true"
+                                    />
+                                </div>
+                                <div className="mt-4 grid gap-3">
+                                    {pendingPayments.map((payment) => (
+                                        <div
+                                            key={payment.id}
+                                            className="bg-background/70 flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between"
+                                        >
+                                            <div className="min-w-0">
+                                                <p className="truncate font-semibold">
+                                                    {payment.order_number ??
+                                                        `Payment #${payment.id}`}
+                                                </p>
+                                                <p className="text-muted-foreground mt-1 text-xs">
+                                                    {payment.tenant} ·{' '}
+                                                    {payment.outlet ?? 'Outlet'}{' '}
+                                                    ·{' '}
+                                                    {payment.provider ??
+                                                        'Provider tidak diketahui'}
+                                                </p>
+                                                <p className="text-muted-foreground mt-1 truncate text-xs">
+                                                    {payment.provider_reference ??
+                                                        'Tanpa provider reference'}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-3 sm:justify-end">
+                                                <div className="text-right">
+                                                    <p className="text-sm font-bold">
+                                                        {formatMoney(
+                                                            payment.amount,
+                                                            payment.currency,
+                                                        )}
+                                                    </p>
+                                                    <p className="text-muted-foreground mt-1 text-xs">
+                                                        Webhook terakhir{' '}
+                                                        {formatDate(
+                                                            payment.last_webhook_at,
+                                                        )}
+                                                    </p>
+                                                </div>
+                                                {payment.provider ===
+                                                'midtrans' ? (
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            reconcilePayment(
+                                                                payment,
+                                                            )
+                                                        }
+                                                    >
+                                                        <RefreshCw aria-hidden="true" />
+                                                        Cek status
+                                                    </Button>
+                                                ) : (
+                                                    <span className="text-muted-foreground max-w-24 text-right text-xs">
+                                                        Belum didukung
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {paymentEvents.length === 0 ? (
-                            <p className="text-muted-foreground mt-7 text-sm">
-                                Belum ada payment event.
+                            <p className="text-muted-foreground mt-5 rounded-2xl border border-dashed p-6 text-sm">
+                                Tidak ada payment event yang cocok.
                             </p>
                         ) : (
-                            <div className="mt-7 grid gap-4">
+                            <div className="mt-5 grid gap-4">
                                 {paymentEvents.map((event) => (
                                     <div
                                         key={event.id}
@@ -999,8 +1525,15 @@ export default function PlatformDashboard({
                                             </p>
                                             <p className="text-muted-foreground mt-1 text-xs">
                                                 {event.tenant} ·{' '}
+                                                {event.outlet ?? 'Outlet'} ·{' '}
                                                 {event.provider} ·{' '}
                                                 {formatDate(event.occurred_at)}
+                                            </p>
+                                            <p className="text-muted-foreground mt-1 truncate text-xs">
+                                                {event.order_number
+                                                    ? `Order ${event.order_number} · `
+                                                    : ''}
+                                                Event {event.event_id}
                                             </p>
                                         </div>
                                         <div className="shrink-0 text-right">
@@ -1014,14 +1547,29 @@ export default function PlatformDashboard({
                                                 className={`mt-1 text-xs font-semibold ${event.processed ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}
                                             >
                                                 {event.processed
-                                                    ? 'Diproses'
-                                                    : 'Menunggu'}
+                                                    ? 'Webhook diproses'
+                                                    : 'Webhook menunggu'}
                                             </p>
+                                            {event.payment_status && (
+                                                <p className="text-muted-foreground mt-1 text-xs">
+                                                    Payment{' '}
+                                                    {statusLabel(
+                                                        event.payment_status,
+                                                    )}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         )}
+                        <PaginationControls
+                            pagination={paymentEventPagination}
+                            onChange={(page) =>
+                                visitPlatform({ payment_event_page: page })
+                            }
+                            label="Payment event"
+                        />
                     </section>
                 </div>
             </div>
@@ -1227,6 +1775,128 @@ export default function PlatformDashboard({
                             </Button>
                         </DialogFooter>
                     </form>
+                </DialogContent>
+            </Dialog>
+            <Dialog
+                open={selectedTenant !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setSelectedTenant(null);
+                    }
+                }}
+            >
+                <DialogContent className="sm:max-w-xl">
+                    {selectedTenant && (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle>{selectedTenant.name}</DialogTitle>
+                                <DialogDescription>
+                                    Detail tenant dan kesehatan workspace dari
+                                    sudut pandang platform.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="bg-secondary/60 rounded-2xl p-4">
+                                    <p className="text-muted-foreground text-xs">
+                                        Status tenant
+                                    </p>
+                                    <p
+                                        className={`mt-2 w-fit rounded-full px-3 py-1 text-xs font-bold ${statusClass(selectedTenant.status)}`}
+                                    >
+                                        {statusLabel(selectedTenant.status)}
+                                    </p>
+                                </div>
+                                <div className="bg-secondary/60 rounded-2xl p-4">
+                                    <p className="text-muted-foreground text-xs">
+                                        Subscription
+                                    </p>
+                                    <p className="mt-2 font-semibold">
+                                        {selectedTenant.subscription?.plan ??
+                                            'Belum ada plan'}
+                                    </p>
+                                    <p className="text-muted-foreground mt-1 text-xs">
+                                        {selectedTenant.subscription
+                                            ? statusLabel(
+                                                  selectedTenant.subscription
+                                                      .status,
+                                              )
+                                            : 'Belum berlangganan'}
+                                    </p>
+                                </div>
+                                <div className="rounded-2xl border p-4">
+                                    <p className="text-muted-foreground text-xs">
+                                        Owner aktif
+                                    </p>
+                                    <p className="mt-2 font-semibold">
+                                        {selectedTenant.owner?.name ?? '-'}
+                                    </p>
+                                    <p className="text-muted-foreground mt-1 text-xs break-all">
+                                        {selectedTenant.owner?.email ??
+                                            'Tidak tersedia'}
+                                    </p>
+                                </div>
+                                <div className="rounded-2xl border p-4">
+                                    <p className="text-muted-foreground text-xs">
+                                        Aktivitas workspace
+                                    </p>
+                                    <p className="mt-2 font-semibold">
+                                        {selectedTenant.active_outlets} dari{' '}
+                                        {selectedTenant.outlets} outlet aktif
+                                    </p>
+                                    <p className="text-muted-foreground mt-1 text-xs">
+                                        {selectedTenant.active_members} member
+                                        aktif
+                                    </p>
+                                </div>
+                            </div>
+                            <dl className="grid gap-3 rounded-2xl border p-4 text-sm sm:grid-cols-2">
+                                <div>
+                                    <dt className="text-muted-foreground text-xs">
+                                        Slug
+                                    </dt>
+                                    <dd className="mt-1 font-medium">
+                                        {selectedTenant.slug}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-muted-foreground text-xs">
+                                        Zona waktu
+                                    </dt>
+                                    <dd className="mt-1 font-medium">
+                                        {selectedTenant.timezone}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-muted-foreground text-xs">
+                                        Dibuat
+                                    </dt>
+                                    <dd className="mt-1 font-medium">
+                                        {formatDate(selectedTenant.created_at)}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-muted-foreground text-xs">
+                                        Periode berakhir
+                                    </dt>
+                                    <dd className="mt-1 font-medium">
+                                        {formatDate(
+                                            selectedTenant.subscription
+                                                ?.period_ends_at ?? null,
+                                        )}
+                                    </dd>
+                                </div>
+                            </dl>
+                            <DialogFooter>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setSelectedTenant(null)}
+                                >
+                                    Tutup
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
                 </DialogContent>
             </Dialog>
         </>

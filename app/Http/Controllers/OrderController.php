@@ -11,6 +11,7 @@ use App\Models\Order;
 use App\Models\StaffNotificationPreference;
 use App\Services\OrderStatusService;
 use App\Support\Tenancy\TenantContext;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -22,8 +23,12 @@ class OrderController extends Controller
     {
         $this->authorize('viewAny', Order::class);
 
+        $outlet = $context->outletOrFail();
         $search = trim((string) $request->query('search', ''));
         $status = $this->normalizeStatus($request->query('status'));
+        $tableId = $this->normalizeTableId($request->query('table_id'));
+        $fromDate = $this->normalizeDate($request->query('from'), $outlet->timezone);
+        $toDate = $this->normalizeDate($request->query('to'), $outlet->timezone);
         $boardStatuses = $this->boardStatuses();
         $activeStatuses = $this->activeStatuses();
 
@@ -54,6 +59,18 @@ class OrderController extends Controller
             });
         }
 
+        if ($tableId !== null) {
+            $query->where('table_id', $tableId);
+        }
+
+        if ($fromDate !== null) {
+            $query->where('created_at', '>=', $fromDate->startOfDay()->setTimezone('UTC'));
+        }
+
+        if ($toDate !== null) {
+            $query->where('created_at', '<', $toDate->addDay()->startOfDay()->setTimezone('UTC'));
+        }
+
         $orders = $query->orderByDesc('created_at')->limit(100)->get();
         $countQuery = Order::query()->whereIn('status', $boardStatuses);
         $counts = [
@@ -64,7 +81,6 @@ class OrderController extends Controller
             $counts[$boardStatus] = (clone $countQuery)->where('status', $boardStatus)->count();
         }
 
-        $outlet = $context->outletOrFail();
         $preference = StaffNotificationPreference::query()
             ->where('user_id', $request->user()?->getAuthIdentifier())
             ->first();
@@ -97,7 +113,20 @@ class OrderController extends Controller
             'filters' => [
                 'search' => $search,
                 'status' => $status,
+                'table_id' => $tableId,
+                'from' => $fromDate?->format('Y-m-d'),
+                'to' => $toDate?->format('Y-m-d'),
             ],
+            'tables' => $outlet->tables()
+                ->orderBy('name')
+                ->get(['id', 'name', 'code', 'is_active'])
+                ->map(fn ($table): array => [
+                    'id' => (int) $table->getKey(),
+                    'name' => (string) $table->name,
+                    'code' => (string) $table->code,
+                    'is_active' => (bool) $table->is_active,
+                ])
+                ->values(),
             'counts' => $counts,
             'orders' => $orders->map(fn (Order $order) => (new OrderResource($order))->resolve($request))->values(),
         ]);
@@ -172,5 +201,37 @@ class OrderController extends Controller
         $status = is_string($value) ? $value : 'active';
 
         return in_array($status, [...$this->boardStatuses(), 'active'], true) ? $status : 'active';
+    }
+
+    private function normalizeTableId(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+
+        if (! is_string($value) || $value === '' || ! ctype_digit($value)) {
+            return null;
+        }
+
+        $tableId = (int) $value;
+
+        return $tableId > 0 ? $tableId : null;
+    }
+
+    private function normalizeDate(mixed $value, string $timezone): ?CarbonImmutable
+    {
+        if (! is_string($value) || ! preg_match('/\A\d{4}-\d{2}-\d{2}\z/', $value)) {
+            return null;
+        }
+
+        try {
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', $value, $timezone);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $date instanceof CarbonImmutable && $date->format('Y-m-d') === $value
+            ? $date
+            : null;
     }
 }

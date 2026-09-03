@@ -14,7 +14,9 @@ class EnsureTenantContext
     public function handle(Request $request, Closure $next): Response
     {
         if ($this->context->tenant() === null) {
-            return redirect()->route('onboarding.create');
+            return $request->user()?->is_platform_admin
+                ? redirect()->route('platform.dashboard')
+                : redirect()->route('onboarding.create');
         }
 
         abort_if($this->context->outlet() === null, 403, 'Outlet aktif belum dipilih.');

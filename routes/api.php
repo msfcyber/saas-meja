@@ -20,6 +20,7 @@ Route::post('analytics/events', AnalyticsEventController::class)
     ->name('analytics.events.store');
 
 Route::middleware('throttle:public-orders')->group(function () {
+    Route::post('public/carts/validate', [PublicOrderController::class, 'validateCart'])->name('public.carts.validate');
     Route::post('public/orders', [PublicOrderController::class, 'store'])->name('public.orders.store');
     Route::get('public/orders/{accessToken}', [PublicOrderController::class, 'showJson'])->name('public.orders.show');
     Route::get('public/orders/{accessToken}/payment', [PublicOrderController::class, 'paymentStatus'])

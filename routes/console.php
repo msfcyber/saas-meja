@@ -7,9 +7,11 @@ use App\Models\Payment;
 use App\Models\PaymentEvent;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\AuditLogService;
 use App\Services\BackupService;
 use App\Services\PaymentLifecycleService;
 use App\Services\PaymentReconciliationService;
+use App\Services\SaasInvoiceService;
 use App\Services\TelemetryService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -72,6 +74,16 @@ Artisan::command('payments:expire {--limit=100}', function (PaymentLifecycleServ
 
     return 0;
 })->purpose('Expire overdue pending payments');
+
+Artisan::command('subscriptions:expire-invoices {--limit=100}', function (SaasInvoiceService $invoices): int {
+    $limit = filter_var($this->option('limit'), FILTER_VALIDATE_INT);
+    $limit = $limit === false ? 100 : max(1, min(500, $limit));
+    $expired = $invoices->expireDue($limit);
+
+    $this->info("Invoice subscription kadaluarsa: {$expired}.");
+
+    return 0;
+})->purpose('Expire overdue pending subscription invoices');
 
 Artisan::command('ops:backup {--destination= : Override the configured backup destination}', function (
     BackupService $backups,
@@ -182,7 +194,11 @@ Schedule::command('payments:expire --limit=100')
     ->everyMinute()
     ->withoutOverlapping();
 
-Artisan::command('subscriptions:expire', function (): int {
+Schedule::command('subscriptions:expire-invoices --limit=100')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();
+
+Artisan::command('subscriptions:expire', function (AuditLogService $audits): int {
     $subscriptions = Subscription::withoutGlobalScopes()
         ->whereIn('status', [SubscriptionStatus::Trialing, SubscriptionStatus::Active, SubscriptionStatus::PastDue])
         ->get();
@@ -200,7 +216,20 @@ Artisan::command('subscriptions:expire', function (): int {
             continue;
         }
 
+        $oldValues = [
+            'status' => $subscription->status->value,
+            'trial_ends_at' => $subscription->trial_ends_at?->toIso8601String(),
+            'current_period_ends_at' => $subscription->current_period_ends_at?->toIso8601String(),
+        ];
         $subscription->update(['status' => SubscriptionStatus::Expired]);
+        $audits->record('subscription.expired', [
+            'tenant_id' => (int) $subscription->tenant_id,
+            'actor_type' => 'system',
+            'auditable_type' => Subscription::class,
+            'auditable_id' => (int) $subscription->getKey(),
+            'old_values' => $oldValues,
+            'new_values' => ['status' => SubscriptionStatus::Expired->value],
+        ]);
         $expired++;
     }
 

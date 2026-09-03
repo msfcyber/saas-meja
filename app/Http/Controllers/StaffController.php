@@ -11,17 +11,18 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\SubscriptionEntitlementService;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Auth\Passwords\PasswordBroker;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class StaffController extends Controller
 {
-    private const DEFAULT_STAFF_PASSWORD = 'password';
-
     /** @var list<string> */
     private const STAFF_ROLES = ['admin', 'cashier', 'kitchen'];
 
@@ -102,8 +103,10 @@ class StaffController extends Controller
         $role = $this->tenantRole($tenant, $attributes['role']);
         $outlets = $this->activeOutlets($tenant, $attributes['outlet_ids']);
 
-        $staff = DB::transaction(function () use ($tenant, $attributes, $role, $outlets, $audits): User {
+        /** @var array{staff: User, invite_sent: bool} $result */
+        $result = DB::transaction(function () use ($tenant, $attributes, $role, $outlets, $audits): array {
             $staff = User::query()->where('email', $attributes['email'])->first();
+            $inviteSent = false;
 
             if ($staff === null) {
                 if (blank($attributes['name'] ?? null)) {
@@ -115,8 +118,9 @@ class StaffController extends Controller
                 $staff = User::query()->create([
                     'name' => $attributes['name'],
                     'email' => $attributes['email'],
-                    'password' => self::DEFAULT_STAFF_PASSWORD,
+                    'password' => Str::random(64),
                 ]);
+                $inviteSent = true;
             }
 
             if ($tenant->users()->whereKey($staff->getKey())->exists()) {
@@ -146,10 +150,26 @@ class StaffController extends Controller
                 ],
             ]);
 
-            return $staff;
+            return [
+                'staff' => $staff,
+                'invite_sent' => $inviteSent,
+            ];
         }, attempts: 3);
 
-        return to_route('staff')->with('success', "{$staff->name} berhasil ditambahkan sebagai staf.");
+        $staff = $result['staff'];
+
+        if ($result['invite_sent']) {
+            /** @var PasswordBroker $broker */
+            $broker = Password::broker();
+            $token = $broker->createToken($staff);
+            $staff->sendPasswordResetNotification($token);
+        }
+
+        $message = $result['invite_sent']
+            ? "{$staff->name} berhasil ditambahkan. Link pengaturan password dikirim ke emailnya."
+            : "{$staff->name} berhasil ditambahkan sebagai staf.";
+
+        return to_route('staff')->with('success', $message);
     }
 
     public function update(

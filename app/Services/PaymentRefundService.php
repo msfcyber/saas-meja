@@ -59,6 +59,20 @@ final class PaymentRefundService
                 throw new ConflictHttpException('Payment lunas untuk order ini tidak ditemukan.');
             }
 
+            $activeRefund = PaymentRefund::withoutGlobalScopes()
+                ->where('payment_id', $payment->getKey())
+                ->whereIn('status', [PaymentRefundStatus::Pending, PaymentRefundStatus::Succeeded])
+                ->lockForUpdate()
+                ->first();
+
+            if ($activeRefund !== null) {
+                if ($activeRefund->idempotency_key === $idempotencyKey) {
+                    return $activeRefund;
+                }
+
+                throw new ConflictHttpException('Refund untuk payment ini sedang atau sudah diproses.');
+            }
+
             return PaymentRefund::withoutGlobalScopes()->create([
                 'tenant_id' => $lockedOrder->tenant_id,
                 'outlet_id' => $lockedOrder->outlet_id,

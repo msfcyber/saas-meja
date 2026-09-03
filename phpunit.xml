@@ -29,8 +29,12 @@
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
-        <env name="SESSION_DRIVER" value="array"/>
-        <env name="PULSE_ENABLED" value="false"/>
+         <env name="SESSION_DRIVER" value="array"/>
+         <env name="SEED_SUPERADMIN_EMAIL" value="superadmin@meja.test"/>
+         <env name="SEED_SUPERADMIN_PASSWORD" value="password"/>
+         <env name="DEMO_OWNER_EMAIL" value="owner@meja.test"/>
+         <env name="DEMO_OWNER_PASSWORD" value="password"/>
+         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
     </php>

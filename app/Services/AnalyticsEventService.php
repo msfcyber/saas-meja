@@ -28,6 +28,15 @@ final class AnalyticsEventService
         'order_completed',
     ];
 
+    /** @var list<string> */
+    public const PUBLIC_EVENTS = [
+        'qr_opened',
+        'menu_viewed',
+        'product_viewed',
+        'add_to_cart',
+        'checkout_started',
+    ];
+
     /**
      * @param  array<string, mixed>  $context
      */
@@ -68,6 +77,10 @@ final class AnalyticsEventService
         ?int $orderId = null,
         array $properties = [],
     ): AnalyticsEvent {
+        if (! in_array($event, self::PUBLIC_EVENTS, true)) {
+            throw new InvalidArgumentException("Public analytics event [{$event}] tidak didukung.");
+        }
+
         return $this->record($event, (int) $access->tenant->getKey(), (int) $access->outlet->getKey(), [
             'qr_token' => $access->plainToken,
             'session_id' => $sessionId,

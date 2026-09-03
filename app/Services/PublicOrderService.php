@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\ModifierSelectionType;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
+use App\Enums\SubscriptionStatus;
 use App\Enums\TenantStatus;
 use App\Models\Category;
 use App\Models\DiningTable;
@@ -17,6 +18,7 @@ use App\Models\Outlet;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\Subscription;
 use App\Models\TableQrToken;
 use App\Models\TaxSetting;
 use App\Models\Tenant;
@@ -35,6 +37,27 @@ final class PublicOrderService
         private readonly TelemetryService $telemetry,
         private readonly AnalyticsEventService $analytics,
     ) {}
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public function preview(PublicTableAccess $access, array $data): array
+    {
+        $tenantId = (int) $access->tenant->getKey();
+        $outletId = (int) $access->outlet->getKey();
+
+        return DB::transaction(function () use ($access, $data, $tenantId, $outletId): array {
+            $this->assertFreshAccess($access);
+            $quote = $this->priceQuote($data, $tenantId, $outletId);
+            $payload = $this->publicQuote($quote);
+
+            return [
+                ...$payload,
+                'fingerprint' => $this->quoteFingerprint($payload),
+            ];
+        }, attempts: 3);
+    }
 
     /**
      * @param  array<string, mixed>  $data
@@ -71,41 +94,28 @@ final class PublicOrderService
                     ];
                 }
 
-                $items = is_array($data['items'] ?? null) ? array_values($data['items']) : [];
-                $lines = [];
+                $quote = $this->priceQuote($data, $tenantId, $outletId);
+                $lines = $quote['lines'];
+                $outlet = $quote['outlet'];
+                $subtotal = $quote['subtotal'];
+                $discountAmount = $quote['discount_amount'];
+                $taxRate = $quote['tax_rate'];
+                $taxName = $quote['tax_name'];
+                $taxInclusive = $quote['tax_inclusive'];
+                $taxAmount = $quote['tax_amount'];
+                $feeAmount = $quote['fee_amount'];
+                $grandTotal = $quote['grand_total'];
 
-                foreach ($items as $index => $item) {
-                    if (! is_array($item)) {
-                        $this->invalid("items.{$index}", 'Item pesanan tidak valid.');
-                    }
+                $submittedQuoteFingerprint = $data['quote_fingerprint'] ?? null;
 
-                    $lines[] = $this->priceItem($item, (int) $index, $tenantId, $outletId);
+                if (is_string($submittedQuoteFingerprint)
+                    && ! hash_equals(
+                        $this->quoteFingerprint($this->publicQuote($quote)),
+                        $submittedQuoteFingerprint,
+                    )) {
+                    $this->invalid('quote', 'Harga atau ketersediaan menu berubah. Periksa ulang pesananmu.');
                 }
 
-                $outlet = Outlet::withoutGlobalScopes()
-                    ->whereKey($outletId)
-                    ->where('tenant_id', $tenantId)
-                    ->firstOrFail();
-                $taxSetting = TaxSetting::withoutGlobalScopes()
-                    ->where('tenant_id', $tenantId)
-                    ->where('outlet_id', $outletId)
-                    ->first();
-                $subtotal = array_sum(array_map(
-                    static fn (array $line): int => $line['line_total'],
-                    $lines,
-                ));
-                $discountAmount = 0;
-                $feeAmount = 0;
-                $taxEnabled = $taxSetting !== null && $taxSetting->is_enabled === true && (int) $taxSetting->rate_basis_points > 0;
-                $taxRate = $taxEnabled ? (int) $taxSetting->rate_basis_points : 0;
-                $taxName = $taxEnabled && is_string($taxSetting->name) ? $taxSetting->name : null;
-                $taxInclusive = $taxEnabled && $taxSetting->is_inclusive === true;
-                $taxAmount = $taxEnabled
-                    ? ($taxInclusive
-                        ? $this->roundDivision($subtotal * $taxRate, 10000 + $taxRate)
-                        : $this->roundDivision($subtotal * $taxRate, 10000))
-                    : 0;
-                $grandTotal = $subtotal - $discountAmount + $feeAmount + ($taxInclusive ? 0 : $taxAmount);
                 $sequence = $this->nextOrderSequence($tenantId, $outletId);
                 $accessToken = bin2hex(random_bytes(32));
                 $now = now();
@@ -210,15 +220,127 @@ final class PublicOrderService
         ]);
 
         if ($result['created']) {
-            $this->analytics->recordPublic(
+            $this->analytics->record(
                 'order_created',
-                $access,
-                orderId: (int) $result['order']->getKey(),
-                properties: ['status' => OrderStatus::AwaitingPayment->value],
+                (int) $access->tenant->getKey(),
+                (int) $access->outlet->getKey(),
+                [
+                    'qr_token' => $access->plainToken,
+                    'order_id' => (int) $result['order']->getKey(),
+                    'properties' => ['status' => OrderStatus::AwaitingPayment->value],
+                ],
             );
         }
 
         return $result;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{lines: list<array<string, mixed>>, outlet: Outlet, tax_name: string|null, tax_rate: int, tax_inclusive: bool, subtotal: int, discount_amount: int, fee_amount: int, tax_amount: int, grand_total: int}
+     */
+    private function priceQuote(array $data, int $tenantId, int $outletId): array
+    {
+        $items = is_array($data['items'] ?? null) ? array_values($data['items']) : [];
+        $lines = [];
+
+        foreach ($items as $index => $item) {
+            if (! is_array($item)) {
+                $this->invalid("items.{$index}", 'Item pesanan tidak valid.');
+            }
+
+            $lines[] = $this->priceItem($item, (int) $index, $tenantId, $outletId);
+        }
+
+        $outlet = Outlet::withoutGlobalScopes()
+            ->whereKey($outletId)
+            ->where('tenant_id', $tenantId)
+            ->firstOrFail();
+        $taxSetting = TaxSetting::withoutGlobalScopes()
+            ->where('tenant_id', $tenantId)
+            ->where('outlet_id', $outletId)
+            ->first();
+        $subtotal = array_sum(array_map(
+            static fn (array $line): int => (int) $line['line_total'],
+            $lines,
+        ));
+        $discountAmount = 0;
+        $feeAmount = 0;
+        $taxEnabled = $taxSetting !== null && $taxSetting->is_enabled === true && (int) $taxSetting->rate_basis_points > 0;
+        $taxRate = $taxEnabled ? (int) $taxSetting->rate_basis_points : 0;
+        $taxName = $taxEnabled && is_string($taxSetting->name) ? $taxSetting->name : null;
+        $taxInclusive = $taxEnabled && $taxSetting->is_inclusive === true;
+        $taxAmount = $taxEnabled
+            ? ($taxInclusive
+                ? $this->roundDivision($subtotal * $taxRate, 10000 + $taxRate)
+                : $this->roundDivision($subtotal * $taxRate, 10000))
+            : 0;
+
+        return [
+            'lines' => $lines,
+            'outlet' => $outlet,
+            'tax_name' => $taxName,
+            'tax_rate' => $taxRate,
+            'tax_inclusive' => $taxInclusive,
+            'subtotal' => $subtotal,
+            'discount_amount' => $discountAmount,
+            'fee_amount' => $feeAmount,
+            'tax_amount' => $taxAmount,
+            'grand_total' => $subtotal - $discountAmount + $feeAmount + ($taxInclusive ? 0 : $taxAmount),
+        ];
+    }
+
+    /**
+     * @param  array{lines: list<array<string, mixed>>, outlet: Outlet, tax_name: string|null, tax_rate: int, tax_inclusive: bool, subtotal: int, discount_amount: int, fee_amount: int, tax_amount: int, grand_total: int}  $quote
+     * @return array{items: list<array<string, mixed>>, subtotal: int, discount_amount: int, tax_name: string|null, tax_rate_basis_points: int, tax_inclusive: bool, tax_amount: int, fee_amount: int, grand_total: int, currency: string}
+     */
+    private function publicQuote(array $quote): array
+    {
+        return [
+            'items' => array_map(
+                static fn (array $line): array => [
+                    'product_id' => (int) $line['product_id'],
+                    'variant_id' => $line['variant_id'] === null ? null : (int) $line['variant_id'],
+                    'modifier_option_ids' => array_values(array_map(
+                        static fn (array $modifier): int => (int) $modifier['option_id'],
+                        $line['modifiers'],
+                    )),
+                    'quantity' => (int) $line['quantity'],
+                    'note' => $line['note'],
+                    'product_name' => (string) $line['product_name'],
+                    'variant_name' => $line['variant_name'],
+                    'unit_price' => (int) $line['unit_price'],
+                    'line_total' => (int) $line['line_total'],
+                ],
+                $quote['lines'],
+            ),
+            'subtotal' => $quote['subtotal'],
+            'discount_amount' => $quote['discount_amount'],
+            'tax_name' => $quote['tax_name'],
+            'tax_rate_basis_points' => $quote['tax_rate'],
+            'tax_inclusive' => $quote['tax_inclusive'],
+            'tax_amount' => $quote['tax_amount'],
+            'fee_amount' => $quote['fee_amount'],
+            'grand_total' => $quote['grand_total'],
+            'currency' => (string) $quote['outlet']->currency,
+        ];
+    }
+
+    /** @param array<string, mixed> $quote */
+    private function quoteFingerprint(array $quote): string
+    {
+        return hash('sha256', json_encode([
+            'items' => $quote['items'],
+            'subtotal' => $quote['subtotal'],
+            'discount_amount' => $quote['discount_amount'],
+            'tax_name' => $quote['tax_name'],
+            'tax_rate_basis_points' => $quote['tax_rate_basis_points'],
+            'tax_inclusive' => $quote['tax_inclusive'],
+            'tax_amount' => $quote['tax_amount'],
+            'fee_amount' => $quote['fee_amount'],
+            'grand_total' => $quote['grand_total'],
+            'currency' => $quote['currency'],
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
     }
 
     /**
@@ -401,6 +523,11 @@ final class PublicOrderService
             ->where('is_active', true)
             ->lockForUpdate()
             ->first();
+        $subscription = Subscription::withoutGlobalScopes()
+            ->where('tenant_id', $tenantId)
+            ->latest('id')
+            ->lockForUpdate()
+            ->first();
 
         if ($qrToken === null || $qrToken->revoked_at !== null || ($qrToken->expires_at !== null && CarbonImmutable::parse((string) $qrToken->expires_at)->isPast())) {
             $this->invalid('qr_token', 'QR meja tidak valid atau sudah tidak berlaku.');
@@ -408,6 +535,17 @@ final class PublicOrderService
 
         if ($tenant === null) {
             $this->invalid('qr_token', 'Menu sedang tidak tersedia.');
+        }
+
+        $now = CarbonImmutable::now();
+
+        if ($subscription === null
+            || ! $subscription->status->allowsOrders()
+            || ($subscription->status === SubscriptionStatus::Trialing
+                && ($subscription->trial_ends_at === null || $subscription->trial_ends_at->lessThanOrEqualTo($now)))
+            || ($subscription->current_period_ends_at !== null
+                && $subscription->current_period_ends_at->lessThanOrEqualTo($now))) {
+            $this->invalid('qr_token', 'Menu sedang tidak tersedia karena subscription belum aktif.');
         }
 
         if ($outlet === null) {

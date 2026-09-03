@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Enums\PaymentStatus;
 use App\Events\OrderStatusUpdated;
+use App\Http\Requests\Customer\StartGuestPaymentRequest;
 use App\Http\Requests\Customer\StoreGuestOrderRequest;
+use App\Http\Requests\Customer\ValidateGuestCartRequest;
 use App\Http\Resources\OrderResource;
 use App\Models\Order;
 use App\Models\Payment;
@@ -20,6 +22,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class PublicOrderController extends Controller
@@ -84,36 +87,53 @@ class PublicOrderController extends Controller
         $order = $result['order'];
         $orderResource = (new OrderResource($order))->resolve($request);
 
-        return response()->json([
+        return $this->noStore(response()->json([
             'order' => $orderResource,
             'access_token' => $result['access_token'],
             'tracking_url' => route('public.order', ['accessToken' => $result['access_token']]),
             'created' => $result['created'],
-        ], $result['created'] ? 201 : 200);
+        ], $result['created'] ? 201 : 200));
+    }
+
+    public function validateCart(
+        ValidateGuestCartRequest $request,
+        PublicTableAccessService $accessService,
+        PublicOrderService $orders,
+    ): JsonResponse {
+        $data = $request->validated();
+        $access = $accessService->resolve((string) $data['qr_token']);
+
+        if ($access === null) {
+            throw ValidationException::withMessages([
+                'qr_token' => 'QR meja tidak valid atau outlet belum menerima pesanan.',
+            ]);
+        }
+
+        return $this->noStore(response()->json(['quote' => $orders->preview($access, $data)]));
     }
 
     public function show(
         Request $request,
         string $accessToken,
         PaymentLifecycleService $lifecycle,
-    ): Response {
+    ): HttpResponse {
         $order = $this->findOrder($accessToken);
 
         if ($order === null) {
-            return Inertia::render('customer/tracking', [
+            return $this->noStoreResponse(Inertia::render('customer/tracking', [
                 'access' => [
                     'valid' => false,
                     'message' => 'Tautan tracking order tidak valid atau sudah tidak tersedia.',
                 ],
                 'order' => null,
-            ]);
+            ])->toResponse($request));
         }
 
         $this->expireLatestPayment($order, $lifecycle);
         $order->refresh();
         $this->loadPublicOrder($order);
 
-        return Inertia::render('customer/tracking', [
+        return $this->noStoreResponse(Inertia::render('customer/tracking', [
             'access' => ['valid' => true, 'message' => null],
             'order' => (new OrderResource($order))->resolve($request),
             'realtime' => [
@@ -126,7 +146,7 @@ class PublicOrderController extends Controller
                 Payment::withoutGlobalScopes()->where('order_id', $order->getKey())->latest('id')->firstOrFail(),
                 $accessToken,
             ),
-        ]);
+        ])->toResponse($request));
     }
 
     public function showJson(
@@ -137,16 +157,16 @@ class PublicOrderController extends Controller
         $order = $this->findOrder($accessToken);
 
         if ($order === null) {
-            return response()->json(['message' => 'Order tidak ditemukan.'], 404);
+            return $this->noStore(response()->json(['message' => 'Order tidak ditemukan.'], 404));
         }
 
         $this->expireLatestPayment($order, $lifecycle);
         $order->refresh();
         $this->loadPublicOrder($order);
 
-        return response()->json([
+        return $this->noStore(response()->json([
             'order' => (new OrderResource($order))->resolve($request),
-        ]);
+        ]));
     }
 
     public function paymentStatus(
@@ -156,16 +176,16 @@ class PublicOrderController extends Controller
         $order = $this->findOrder($accessToken);
 
         if ($order === null) {
-            return response()->json(['message' => 'Order tidak ditemukan.'], 404);
+            return $this->noStore(response()->json(['message' => 'Order tidak ditemukan.'], 404));
         }
 
         $payment = $this->expireLatestPayment($order, $lifecycle);
 
-        return response()->json($this->paymentPayload($payment, $accessToken));
+        return $this->noStore(response()->json($this->paymentPayload($payment, $accessToken)));
     }
 
     public function startPayment(
-        Request $request,
+        StartGuestPaymentRequest $request,
         string $accessToken,
         PaymentCheckoutService $payments,
         PaymentLifecycleService $lifecycle,
@@ -174,13 +194,18 @@ class PublicOrderController extends Controller
         $order = $this->findOrder($accessToken);
 
         if ($order === null) {
-            return response()->json(['message' => 'Order tidak ditemukan.'], 404);
+            return $this->noStore(response()->json(['message' => 'Order tidak ditemukan.'], 404));
         }
 
         try {
-            $payment = $lifecycle->paymentForCheckout($order);
+            $paymentMethod = $request->validated('payment_method');
+            $paymentMethod = is_string($paymentMethod) ? $paymentMethod : null;
+            $payment = $lifecycle->paymentForCheckout(
+                $order,
+                $paymentMethod,
+            );
         } catch (ConflictHttpException $exception) {
-            return response()->json(['message' => $exception->getMessage()], 409);
+            return $this->noStore(response()->json(['message' => $exception->getMessage()], 409));
         }
 
         try {
@@ -190,14 +215,14 @@ class PublicOrderController extends Controller
                 route('public.order', ['accessToken' => $accessToken]),
             );
         } catch (PaymentGatewayException $exception) {
-            return response()->json(['message' => $exception->getMessage()], 503);
+            return $this->noStore(response()->json(['message' => $exception->getMessage()], 503));
         }
 
         $analytics->record('payment_started', (int) $order->tenant_id, (int) $order->outlet_id, [
             'order_id' => (int) $order->getKey(),
         ]);
 
-        return response()->json($checkout);
+        return $this->noStore(response()->json($checkout));
     }
 
     private function findOrder(string $accessToken): ?Order
@@ -209,6 +234,21 @@ class PublicOrderController extends Controller
         return Order::withoutGlobalScopes()
             ->where('access_token_hash', hash('sha256', $accessToken))
             ->first();
+    }
+
+    private function noStore(JsonResponse $response): JsonResponse
+    {
+        return $response
+            ->header('Cache-Control', 'no-store, private')
+            ->header('Pragma', 'no-cache');
+    }
+
+    private function noStoreResponse(HttpResponse $response): HttpResponse
+    {
+        $response->headers->set('Cache-Control', 'no-store, private');
+        $response->headers->set('Referrer-Policy', 'no-referrer');
+
+        return $response;
     }
 
     private function loadPublicOrder(Order $order): void

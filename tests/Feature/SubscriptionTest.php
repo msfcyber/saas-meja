@@ -3,6 +3,7 @@
 use App\Actions\Tenancy\CreateOwnerWorkspace;
 use App\Enums\SaasInvoiceStatus;
 use App\Enums\SubscriptionStatus;
+use App\Models\AuditLog;
 use App\Models\DiningTable;
 use App\Models\Outlet;
 use App\Models\Plan;
@@ -11,6 +12,7 @@ use App\Models\Subscription;
 use App\Models\TableQrToken;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\SaasInvoiceService;
 use App\Services\SubscriptionEntitlementService;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Http;
@@ -149,6 +151,59 @@ test('subscription lifecycle command marks finished trials as expired', function
     $this->artisan('subscriptions:expire')->assertExitCode(0);
 
     expect($subscription->fresh()->status)->toBe(SubscriptionStatus::Expired);
+    expect(AuditLog::withoutGlobalScopes()
+        ->where('event', 'subscription.expired')
+        ->where('auditable_id', $subscription->id)
+        ->exists())->toBeTrue();
+});
+
+test('saas invoice period follows the subscribed plan billing interval', function () {
+    $workspace = createBillingWorkspace();
+    $plan = Plan::factory()->create(['billing_interval' => 'yearly']);
+    $subscription = Subscription::factory()
+        ->for($workspace['tenant'])
+        ->for($plan)
+        ->create(['status' => SubscriptionStatus::Active]);
+
+    $invoice = app(SaasInvoiceService::class)->pendingFor($subscription);
+
+    expect($invoice->period_ends_at->equalTo($invoice->period_starts_at->addYear()))->toBeTrue();
+});
+
+test('overdue subscription invoices expire before creating a renewal invoice', function () {
+    $workspace = createBillingWorkspace();
+    $staleInvoice = SaasInvoice::factory()
+        ->for($workspace['subscription'], 'subscription')
+        ->create([
+            'status' => SaasInvoiceStatus::Pending,
+            'due_at' => now()->subSecond(),
+        ]);
+
+    $invoice = app(SaasInvoiceService::class)->pendingFor($workspace['subscription']);
+
+    expect($staleInvoice->fresh()->status)->toBe(SaasInvoiceStatus::Expired)
+        ->and($invoice->id)->not->toBe($staleInvoice->id)
+        ->and($invoice->status)->toBe(SaasInvoiceStatus::Pending);
+    expect(AuditLog::withoutGlobalScopes()
+        ->where('event', 'subscription.invoice_expired')
+        ->where('auditable_id', $staleInvoice->id)
+        ->exists())->toBeTrue();
+});
+
+test('subscription invoice expiry command expires overdue pending invoices', function () {
+    $workspace = createBillingWorkspace();
+    $invoice = SaasInvoice::factory()
+        ->for($workspace['subscription'], 'subscription')
+        ->create([
+            'status' => SaasInvoiceStatus::Pending,
+            'due_at' => now()->subSecond(),
+        ]);
+
+    $this->artisan('subscriptions:expire-invoices')
+        ->expectsOutputToContain('Invoice subscription kadaluarsa: 1.')
+        ->assertSuccessful();
+
+    expect($invoice->fresh()->status)->toBe(SaasInvoiceStatus::Expired);
 });
 
 test('public QR access rejects a tenant without an active subscription', function () {

@@ -13,12 +13,16 @@ use App\Models\PaymentEvent;
 use App\Models\PaymentGatewayCredential;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\Subscription;
 use App\Models\TableQrToken;
 use App\Models\TaxSetting;
 use App\Models\Tenant;
+use App\Services\PublicOrderService;
+use App\Services\PublicTableAccessService;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
+use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 
 /**
@@ -153,6 +157,38 @@ test('guest checkout validates the QR context and snapshots the final server pri
         ]);
 });
 
+test('guest cart preview returns a server fingerprint and stale quotes cannot create an order', function () {
+    $workspace = createOrderingWorkspace();
+
+    $preview = $this->postJson(route('public.carts.validate'), [
+        'qr_token' => $workspace['token'],
+        'items' => orderingPayload($workspace)['items'],
+    ]);
+
+    $preview->assertOk()
+        ->assertJsonPath('quote.items.0.product_id', $workspace['product']->id)
+        ->assertJsonPath('quote.items.0.variant_id', $workspace['variant']->id)
+        ->assertJsonPath('quote.items.0.unit_price', 36000)
+        ->assertJsonPath('quote.items.0.line_total', 72000)
+        ->assertJsonPath('quote.subtotal', 72000)
+        ->assertJsonPath('quote.tax_amount', 7200)
+        ->assertJsonPath('quote.grand_total', 79200);
+
+    expect($preview->json('quote.fingerprint'))
+        ->toBeString()
+        ->toHaveLength(64);
+
+    $workspace['product']->update(['base_price' => 30000]);
+    $payload = orderingPayload($workspace);
+    $payload['quote_fingerprint'] = $preview->json('quote.fingerprint');
+
+    $this->postJson(route('public.orders.store'), $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('quote');
+
+    expect(Order::withoutGlobalScopes()->count())->toBe(0);
+});
+
 test('repeating a checkout with the same idempotency key returns the original order', function () {
     $workspace = createOrderingWorkspace();
     $payload = orderingPayload($workspace, 'same-checkout');
@@ -207,6 +243,7 @@ test('a guest checkout starts an idempotent Midtrans Snap session after the orde
             'order_id' => 'meja-payment-'.$payment->id,
             'gross_amount' => $payment->amount,
         ]
+        && $request->data()['enabled_payments'] === ['qris']
         && $request->data()['callbacks'] === [
             'finish' => route('public.order', ['accessToken' => $orderResponse->json('access_token')]),
         ]);
@@ -284,6 +321,43 @@ test('an expired payment creates a replacement for the same order', function () 
     ]);
 });
 
+test('a failed payment can be retried with a different payment method', function () {
+    Http::fake([
+        'https://app.sandbox.midtrans.com/snap/v1/transactions' => Http::response([
+            'token' => 'failed-retry-token',
+            'redirect_url' => 'https://app.sandbox.midtrans.com/snap/v2/vtweb/failed-retry-token',
+        ]),
+    ]);
+    $workspace = createOrderingWorkspace(true);
+    $response = $this->postJson(route('public.orders.store'), orderingPayload($workspace))->assertCreated();
+    $order = createOrder($response);
+    $failedPayment = Payment::withoutGlobalScopes()->where('order_id', $order->id)->firstOrFail();
+    $failedPayment->update(['status' => PaymentStatus::Failed]);
+
+    $this->postJson(route('public.orders.payment.start', [
+        'accessToken' => $response->json('access_token'),
+    ]), ['payment_method' => 'va'])
+        ->assertOk()
+        ->assertJsonPath('redirect_url', 'https://app.sandbox.midtrans.com/snap/v2/vtweb/failed-retry-token');
+
+    $replacement = Payment::withoutGlobalScopes()
+        ->where('order_id', $order->id)
+        ->latest('id')
+        ->firstOrFail();
+
+    expect($failedPayment->fresh()->status)->toBe(PaymentStatus::Failed)
+        ->and($replacement->method)->toBe('va')
+        ->and($replacement->status)->toBe(PaymentStatus::Pending)
+        ->and($order->fresh()->status)->toBe(OrderStatus::AwaitingPayment);
+    Http::assertSent(fn (Request $request): bool => $request->data()['enabled_payments'] === [
+        'bca_va',
+        'bni_va',
+        'bri_va',
+        'permata_va',
+        'other_va',
+    ]);
+});
+
 test('checkout rejects a product from another outlet', function () {
     $workspace = createOrderingWorkspace();
     $otherOutlet = Outlet::factory()->for($workspace['tenant'])->create(['accepts_orders' => true]);
@@ -339,6 +413,8 @@ test('customer tracking is scoped to the random order access token', function ()
 
     $this->get(route('public.order', ['accessToken' => $accessToken]))
         ->assertOk()
+        ->assertHeader('Cache-Control', 'no-store, private')
+        ->assertHeader('Referrer-Policy', 'no-referrer')
         ->assertInertia(fn (Assert $page) => $page
             ->component('customer/tracking')
             ->where('access.valid', true)
@@ -350,6 +426,25 @@ test('customer tracking is scoped to the random order access token', function ()
 
     $this->getJson(route('public.orders.show', ['accessToken' => str_repeat('b', 64)]))
         ->assertNotFound();
+});
+
+test('checkout rechecks the subscription inside its transaction', function () {
+    $workspace = createOrderingWorkspace();
+    $access = app(PublicTableAccessService::class)->resolve($workspace['token']);
+
+    if ($access === null) {
+        throw new LogicException('QR test workspace tidak dapat diakses.');
+    }
+
+    $subscription = Subscription::withoutGlobalScopes()
+        ->where('tenant_id', $workspace['tenant']->id)
+        ->latest('id')
+        ->firstOrFail();
+    $subscription->update(['trial_ends_at' => now()->subSecond()]);
+
+    expect(fn () => app(PublicOrderService::class)->create($access, orderingPayload($workspace)))
+        ->toThrow(ValidationException::class);
+    expect(Order::withoutGlobalScopes()->count())->toBe(0);
 });
 
 test('customer payment status exposes a safe retry URL without leaking gateway references', function () {

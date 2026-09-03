@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Tenancy\ProvisionTenantRoles;
+use App\Enums\TenantStatus;
 use App\Models\Outlet;
 use App\Models\TaxSetting;
 use App\Models\Tenant;
@@ -14,6 +15,22 @@ test('users without a tenant are directed to onboarding from operational routes'
     $response = $this->actingAs($user)->get(route('dashboard'));
 
     $response->assertRedirect(route('onboarding.create'));
+});
+
+test('platform admins without a tenant are directed to the platform dashboard', function () {
+    $admin = User::factory()->platformAdmin()->create();
+
+    $this->actingAs($admin)
+        ->get(route('dashboard'))
+        ->assertRedirect(route('platform.dashboard'));
+});
+
+test('platform admins cannot enter owner onboarding', function () {
+    $admin = User::factory()->platformAdmin()->create();
+
+    $this->actingAs($admin)
+        ->get(route('onboarding.create'))
+        ->assertRedirect(route('platform.dashboard'));
 });
 
 test('an authenticated user without a workspace can view onboarding', function () {
@@ -126,4 +143,18 @@ test('users cannot provision another workspace through onboarding', function () 
 
     $response->assertForbidden();
     expect(Tenant::query()->count())->toBe(1);
+});
+
+test('users with an inactive workspace cannot loop back into onboarding', function () {
+    $user = User::factory()->create();
+    $tenant = Tenant::factory()->create(['status' => TenantStatus::Active]);
+    $tenant->users()->attach($user, [
+        'status' => 'inactive',
+        'is_owner' => false,
+        'joined_at' => now(),
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('onboarding.create'))
+        ->assertForbidden();
 });

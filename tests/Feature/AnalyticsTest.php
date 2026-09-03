@@ -77,3 +77,15 @@ test('public analytics rejects a foreign product for the QR outlet', function ()
 
     expect(AnalyticsEvent::query()->count())->toBe(0);
 });
+
+test('public analytics rejects server-only lifecycle events', function () {
+    $this->postJson(route('analytics.events.store'), [
+        'event' => 'payment_paid',
+        'qr_token' => str_repeat('c', 64),
+        'session_id' => 'browser-session-3',
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('event');
+
+    expect(AnalyticsEvent::query()->count())->toBe(0);
+});

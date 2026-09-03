@@ -26,12 +26,12 @@ class ReceiptController extends Controller
         $order = $this->findPublicOrder($accessToken);
 
         if ($order === null) {
-            return response()->json(['message' => 'Order tidak ditemukan.'], 404);
+            return $this->noStore(response()->json(['message' => 'Order tidak ditemukan.'], 404));
         }
 
         $order = $this->loadReceipt($order);
 
-        return response()->json(['receipt' => $this->receiptData($order)]);
+        return $this->noStore(response()->json(['receipt' => $this->receiptData($order)]));
     }
 
     public function showStaff(Order $order): Response
@@ -150,5 +150,12 @@ class ReceiptController extends Controller
             ])
             ->header('Cache-Control', 'no-store, private')
             ->header('Referrer-Policy', 'no-referrer');
+    }
+
+    private function noStore(JsonResponse $response): JsonResponse
+    {
+        return $response
+            ->header('Cache-Control', 'no-store, private')
+            ->header('Pragma', 'no-cache');
     }
 }

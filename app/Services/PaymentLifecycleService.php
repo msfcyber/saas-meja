@@ -58,9 +58,9 @@ final class PaymentLifecycleService
         return $expired;
     }
 
-    public function paymentForCheckout(Order $order): Payment
+    public function paymentForCheckout(Order $order, ?string $method = null): Payment
     {
-        return DB::transaction(function () use ($order): Payment {
+        return DB::transaction(function () use ($order, $method): Payment {
             $lockedOrder = Order::withoutGlobalScopes()
                 ->whereKey($order->getKey())
                 ->lockForUpdate()
@@ -74,18 +74,29 @@ final class PaymentLifecycleService
             $this->expireLocked($payment, $lockedOrder);
 
             if ($payment->status === PaymentStatus::Pending) {
+                if ($lockedOrder->status !== OrderStatus::AwaitingPayment) {
+                    throw new ConflictHttpException('Order ini tidak lagi menunggu pembayaran.');
+                }
+
                 return $payment;
             }
 
-            if ($payment->status !== PaymentStatus::Expired || $lockedOrder->status !== OrderStatus::PaymentExpired) {
+            $canRetryExpired = $payment->status === PaymentStatus::Expired
+                && $lockedOrder->status === OrderStatus::PaymentExpired;
+            $canRetryFailed = $payment->status === PaymentStatus::Failed
+                && $lockedOrder->status === OrderStatus::AwaitingPayment;
+
+            if (! $canRetryExpired && ! $canRetryFailed) {
                 throw new ConflictHttpException('Payment ini tidak lagi menunggu pembayaran.');
             }
+
+            $paymentMethod = $method === null || $method === '' ? $payment->method : $method;
 
             $replacement = Payment::withoutGlobalScopes()->create([
                 'tenant_id' => $lockedOrder->tenant_id,
                 'outlet_id' => $lockedOrder->outlet_id,
                 'order_id' => $lockedOrder->getKey(),
-                'method' => $payment->method,
+                'method' => $paymentMethod,
                 'status' => PaymentStatus::Pending,
                 'amount' => $payment->amount,
                 'currency' => $payment->currency,
@@ -95,12 +106,14 @@ final class PaymentLifecycleService
             $replacement->update([
                 'provider_reference' => 'meja-payment-'.$replacement->getKey(),
             ]);
-            $this->statuses->transition(
-                $lockedOrder,
-                OrderStatus::AwaitingPayment,
-                'customer',
-                note: 'Membuat payment pengganti setelah payment kedaluwarsa.',
-            );
+            if ($lockedOrder->status === OrderStatus::PaymentExpired) {
+                $this->statuses->transition(
+                    $lockedOrder,
+                    OrderStatus::AwaitingPayment,
+                    'customer',
+                    note: 'Membuat payment pengganti setelah payment tidak dapat digunakan.',
+                );
+            }
             $this->audits->record('payment.retried', [
                 'tenant_id' => (int) $replacement->tenant_id,
                 'outlet_id' => (int) $replacement->outlet_id,
@@ -110,9 +123,11 @@ final class PaymentLifecycleService
                 'old_values' => [
                     'payment_id' => (int) $payment->getKey(),
                     'status' => $payment->status->value,
+                    'method' => $payment->method,
                 ],
                 'new_values' => [
                     'status' => $replacement->status->value,
+                    'method' => $replacement->method,
                     'order_id' => (int) $lockedOrder->getKey(),
                 ],
             ]);

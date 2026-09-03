@@ -23,12 +23,24 @@ class DemoTenantSeeder extends Seeder
 {
     public function run(): void
     {
+        if (! app()->environment(['local', 'testing'])) {
+            return;
+        }
+
+        $email = config('seeders.demo_owner.email');
+        $password = config('seeders.demo_owner.password');
+
+        if (! is_string($email) || trim($email) === '' || ! is_string($password) || $password === '') {
+            throw new \RuntimeException('DEMO_OWNER_EMAIL dan DEMO_OWNER_PASSWORD wajib diisi untuk seeder demo lokal.');
+        }
+
+        $email = trim($email);
         $owner = User::query()->updateOrCreate(
-            ['email' => 'owner@meja.test'],
+            ['email' => $email],
             [
                 'name' => 'Nadia Pratama',
                 'email_verified_at' => now(),
-                'password' => Hash::make('password'),
+                'password' => Hash::make($password),
             ],
         );
 

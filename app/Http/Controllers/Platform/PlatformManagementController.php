@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers\Platform;
 
+use App\Enums\PaymentStatus;
 use App\Enums\SaasInvoiceStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Platform\ReconcilePaymentRequest;
 use App\Http\Requests\Platform\UpdatePlanRequest;
 use App\Http\Requests\Platform\UpdateSubscriptionRequest;
 use App\Http\Requests\Platform\UpdateTenantStatusRequest;
 use App\Http\Requests\Platform\VoidInvoiceRequest;
+use App\Jobs\ReconcilePaymentJob;
+use App\Models\Payment;
+use App\Models\PaymentEvent;
 use App\Models\Plan;
 use App\Models\SaasInvoice;
 use App\Models\Subscription;
@@ -133,6 +138,45 @@ final class PlatformManagementController extends Controller
         });
 
         return to_route('platform.dashboard')->with('success', 'Invoice berhasil dibatalkan.');
+    }
+
+    public function reconcilePayment(
+        ReconcilePaymentRequest $request,
+        int $paymentId,
+        AuditLogService $audits,
+    ): RedirectResponse {
+        $payment = Payment::withoutGlobalScopes()->findOrFail($paymentId);
+        $event = PaymentEvent::withoutGlobalScopes()
+            ->where('payment_id', $payment->getKey())
+            ->latest('id')
+            ->first();
+
+        if ($payment->status !== PaymentStatus::Pending) {
+            throw ValidationException::withMessages([
+                'payment' => 'Payment tidak sedang menunggu verifikasi.',
+            ]);
+        }
+
+        if ($payment->provider !== 'midtrans' || $payment->provider_reference === null) {
+            throw ValidationException::withMessages([
+                'payment' => 'Rekonsiliasi manual belum tersedia untuk provider ini.',
+            ]);
+        }
+
+        ReconcilePaymentJob::dispatch((int) $payment->getKey());
+        $audits->record('platform.payment.reconciliation_requested', [
+            'tenant_id' => (int) $payment->tenant_id,
+            'outlet_id' => (int) $payment->outlet_id,
+            'auditable_type' => Payment::class,
+            'auditable_id' => (int) $payment->getKey(),
+            'new_values' => [
+                'payment_id' => (int) $payment->getKey(),
+                'payment_event_id' => $event?->getKey(),
+                'provider' => $payment->provider,
+            ],
+        ]);
+
+        return to_route('platform.dashboard')->with('success', 'Rekonsiliasi payment sudah diminta.');
     }
 
     /** @return array<string, mixed> */

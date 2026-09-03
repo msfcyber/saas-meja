@@ -36,6 +36,34 @@ type Props = {
     };
 };
 
+type PaymentMethodId = (typeof paymentMethods)[number]['id'];
+
+type ServerQuoteItem = {
+    product_id: number;
+    variant_id: number | null;
+    modifier_option_ids: number[];
+    quantity: number;
+    note: string | null;
+    product_name: string;
+    variant_name: string | null;
+    unit_price: number;
+    line_total: number;
+};
+
+type ServerQuote = {
+    items: ServerQuoteItem[];
+    subtotal: number;
+    discount_amount: number;
+    tax_name: string | null;
+    tax_rate_basis_points: number;
+    tax_inclusive: boolean;
+    tax_amount: number;
+    fee_amount: number;
+    grand_total: number;
+    currency: string;
+    fingerprint: string;
+};
+
 const paymentMethods = [
     {
         id: 'qris',
@@ -46,7 +74,7 @@ const paymentMethods = [
     {
         id: 'ewallet',
         label: 'E-wallet',
-        detail: 'GoPay, ShopeePay, atau DANA',
+        detail: 'GoPay atau ShopeePay',
         icon: Smartphone,
     },
     {
@@ -100,6 +128,63 @@ async function fetchWithTimeout(
     }
 }
 
+function cartPayload(cart: CustomerCartItem[]) {
+    return cart.map((item) => ({
+        product_id: item.product_id,
+        variant_id: item.variant_id,
+        modifier_option_ids: item.modifier_option_ids,
+        quantity: item.quantity,
+        note: item.note,
+    }));
+}
+
+function quoteMatchesCart(
+    quote: ServerQuote,
+    cart: CustomerCartItem[],
+    subtotal: number,
+    taxAmount: number,
+    total: number,
+): boolean {
+    if (
+        quote.items.length !== cart.length ||
+        quote.subtotal !== subtotal ||
+        quote.tax_amount !== taxAmount ||
+        quote.grand_total !== total
+    ) {
+        return false;
+    }
+
+    return quote.items.every((serverItem, index) => {
+        const localItem = cart[index];
+
+        if (!localItem) {
+            return false;
+        }
+
+        const localVariant = localItem.product.variants?.find(
+            (variant) => variant.id === localItem.variant_id,
+        );
+
+        return (
+            serverItem.product_id === localItem.product_id &&
+            serverItem.variant_id === localItem.variant_id &&
+            [...serverItem.modifier_option_ids]
+                .sort((a, b) => a - b)
+                .join(',') ===
+                [...localItem.modifier_option_ids]
+                    .sort((a, b) => a - b)
+                    .join(',') &&
+            serverItem.quantity === localItem.quantity &&
+            (serverItem.note ?? '').trim() === (localItem.note ?? '').trim() &&
+            serverItem.product_name === localItem.product.name &&
+            serverItem.variant_name === (localVariant?.name ?? null) &&
+            serverItem.unit_price === itemUnitPrice(localItem) &&
+            serverItem.line_total ===
+                itemUnitPrice(localItem) * localItem.quantity
+        );
+    });
+}
+
 export default function Checkout({
     access,
     qr_token,
@@ -112,10 +197,12 @@ export default function Checkout({
         qr_token ? loadCustomerCart(qr_token) : [],
     );
     const [customerName, setCustomerName] = useState('');
-    const [payment, setPayment] =
-        useState<(typeof paymentMethods)[number]['id']>('qris');
+    const [payment, setPayment] = useState<PaymentMethodId>('qris');
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [serverQuote, setServerQuote] = useState<ServerQuote | null>(null);
+    const [priceConfirmationRequired, setPriceConfirmationRequired] =
+        useState(false);
     const [idempotencyKey] = useState(makeIdempotencyKey);
 
     useEffect(() => {
@@ -147,8 +234,17 @@ export default function Checkout({
         : 0;
     const total = subtotal + (taxInclusive ? 0 : taxAmount);
     const itemCount = activeCart.reduce((sum, item) => sum + item.quantity, 0);
+    const displaySubtotal = serverQuote?.subtotal ?? subtotal;
+    const displayTaxEnabled = serverQuote
+        ? serverQuote.tax_rate_basis_points > 0
+        : taxEnabled;
+    const displayTaxRate = serverQuote?.tax_rate_basis_points ?? taxRate;
+    const displayTaxAmount = serverQuote?.tax_amount ?? taxAmount;
+    const displayTotal = serverQuote?.grand_total ?? total;
 
     const updateQuantity = (key: string, amount: number) => {
+        setServerQuote(null);
+        setPriceConfirmationRequired(false);
         setCart((current) =>
             current
                 .map((item) =>
@@ -164,6 +260,12 @@ export default function Checkout({
                 )
                 .filter((item) => item.quantity > 0),
         );
+    };
+
+    const removeItem = (key: string) => {
+        setServerQuote(null);
+        setPriceConfirmationRequired(false);
+        setCart((current) => current.filter((item) => item.key !== key));
     };
 
     const submitOrder = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -184,6 +286,59 @@ export default function Checkout({
         setError(null);
 
         try {
+            const quoteResponse = await fetchWithTimeout(
+                '/api/public/carts/validate',
+                {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        qr_token,
+                        items: cartPayload(cart),
+                    }),
+                },
+            );
+            const quoteBody: {
+                quote?: ServerQuote;
+                message?: string;
+                errors?: Record<string, string[]>;
+            } = await quoteResponse.json();
+
+            if (!quoteResponse.ok || !quoteBody.quote) {
+                const validationMessage = quoteBody.errors
+                    ? Object.values(quoteBody.errors)[0]?.[0]
+                    : null;
+                throw new Error(
+                    validationMessage ??
+                        quoteBody.message ??
+                        'Pesanan belum dapat divalidasi.',
+                );
+            }
+
+            const quote = quoteBody.quote;
+            const changed = !quoteMatchesCart(
+                quote,
+                cart,
+                subtotal,
+                taxAmount,
+                total,
+            );
+            const confirmingExistingQuote =
+                priceConfirmationRequired &&
+                serverQuote?.fingerprint === quote.fingerprint;
+
+            setServerQuote(quote);
+
+            if (changed && !confirmingExistingQuote) {
+                setPriceConfirmationRequired(true);
+                setProcessing(false);
+                return;
+            }
+
+            setPriceConfirmationRequired(false);
+
             const response = await fetchWithTimeout('/api/public/orders', {
                 method: 'POST',
                 headers: {
@@ -195,13 +350,8 @@ export default function Checkout({
                     qr_token,
                     customer_name: customerName.trim() || null,
                     payment_method: payment,
-                    items: cart.map((item) => ({
-                        product_id: item.product_id,
-                        variant_id: item.variant_id,
-                        modifier_option_ids: item.modifier_option_ids,
-                        quantity: item.quantity,
-                        note: item.note,
-                    })),
+                    quote_fingerprint: quote.fingerprint,
+                    items: cartPayload(cart),
                 }),
             });
             const body: {
@@ -305,7 +455,7 @@ export default function Checkout({
                                         {itemCount} item
                                     </span>
                                 </div>
-                                {activeCart.map((item) => (
+                                {activeCart.map((item, index) => (
                                     <div
                                         key={item.key}
                                         className="flex gap-4 border-b p-5 last:border-b-0"
@@ -353,8 +503,12 @@ export default function Checkout({
                                                 </div>
                                                 <p className="shrink-0 text-sm font-bold">
                                                     {formatCurrency(
-                                                        itemUnitPrice(item) *
-                                                            item.quantity,
+                                                        serverQuote?.items[
+                                                            index
+                                                        ]?.line_total ??
+                                                            itemUnitPrice(
+                                                                item,
+                                                            ) * item.quantity,
                                                     )}
                                                 </p>
                                             </div>
@@ -394,13 +548,7 @@ export default function Checkout({
                                                     <button
                                                         type="button"
                                                         onClick={() =>
-                                                            setCart((current) =>
-                                                                current.filter(
-                                                                    (entry) =>
-                                                                        entry.key !==
-                                                                        item.key,
-                                                                ),
-                                                            )
+                                                            removeItem(item.key)
                                                         }
                                                         className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold"
                                                     >
@@ -506,16 +654,19 @@ export default function Checkout({
                             <dl className="mt-6 space-y-4 text-sm">
                                 <div className="flex justify-between text-[#cbd1c3]">
                                     <dt>Subtotal</dt>
-                                    <dd>{formatCurrency(subtotal)}</dd>
+                                    <dd>{formatCurrency(displaySubtotal)}</dd>
                                 </div>
                                 <div className="flex justify-between text-[#cbd1c3]">
                                     <dt>
-                                        {taxEnabled
-                                            ? (tax?.name ?? 'Pajak restoran')
+                                        {displayTaxEnabled
+                                            ? (serverQuote?.tax_name ??
+                                              tax?.name ??
+                                              'Pajak restoran')
                                             : 'Pajak'}
-                                        {taxEnabled && ` (${taxRate / 100}%)`}
+                                        {displayTaxEnabled &&
+                                            ` (${displayTaxRate / 100}%)`}
                                     </dt>
-                                    <dd>{formatCurrency(taxAmount)}</dd>
+                                    <dd>{formatCurrency(displayTaxAmount)}</dd>
                                 </div>
                                 <div className="flex justify-between text-[#cbd1c3]">
                                     <dt>Biaya layanan</dt>
@@ -526,9 +677,19 @@ export default function Checkout({
                             <div className="flex items-end justify-between gap-4">
                                 <span className="font-bold">Total</span>
                                 <span className="font-display text-3xl font-bold">
-                                    {formatCurrency(total)}
+                                    {formatCurrency(displayTotal)}
                                 </span>
                             </div>
+                            {priceConfirmationRequired && serverQuote && (
+                                <p
+                                    className="mt-5 rounded-xl bg-amber-400/20 p-3 text-sm font-semibold text-amber-50"
+                                    role="alert"
+                                >
+                                    Harga atau ketersediaan menu berubah.
+                                    Periksa ringkasan terbaru, lalu tekan tombol
+                                    di bawah untuk mengonfirmasi.
+                                </p>
+                            )}
                             {error && (
                                 <p
                                     id="checkout-error"
@@ -553,9 +714,11 @@ export default function Checkout({
                                 >
                                     {processing
                                         ? 'Memproses...'
-                                        : error
-                                          ? 'Coba lagi'
-                                          : 'Lanjutkan pembayaran'}{' '}
+                                        : priceConfirmationRequired
+                                          ? 'Konfirmasi & lanjutkan'
+                                          : error
+                                            ? 'Coba lagi'
+                                            : 'Lanjutkan pembayaran'}{' '}
                                     <ArrowRight
                                         className="size-4"
                                         aria-hidden="true"

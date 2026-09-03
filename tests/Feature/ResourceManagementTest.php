@@ -7,8 +7,10 @@ use App\Models\Role;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Testing\AssertableInertia as Assert;
 
 /**
@@ -164,6 +166,7 @@ test('owner can create update and remove a staff member', function () {
     $workspace = createResourceManagementWorkspace();
     $staffEmail = 'kasir.sore@example.com';
     $session = resourceManagementSession($workspace);
+    Notification::fake();
 
     $this->actingAs($workspace['owner'])
         ->withSession($session)
@@ -178,7 +181,8 @@ test('owner can create update and remove a staff member', function () {
     $staff = User::query()->where('email', $staffEmail)->firstOrFail();
 
     expect($staff->name)->toBe('Kasir Sore')
-        ->and(Hash::check('password', $staff->password))->toBeTrue();
+        ->and(Hash::check('password', $staff->password))->toBeFalse();
+    Notification::assertSentTo($staff, ResetPassword::class);
 
     $cashierRole = Role::query()
         ->where('tenant_id', $workspace['tenant']->id)

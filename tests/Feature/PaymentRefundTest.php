@@ -150,6 +150,34 @@ test('refund gateway failures remain retryable only with a new idempotency key a
     ]);
 });
 
+test('a different idempotency key cannot start a second refund while one is pending', function () {
+    $workspace = createPaymentRefundWorkspace();
+    PaymentRefund::withoutGlobalScopes()->create([
+        'tenant_id' => $workspace['tenant']->id,
+        'outlet_id' => $workspace['outlet']->id,
+        'payment_id' => $workspace['payment']->id,
+        'idempotency_key' => 'refund-in-flight-1',
+        'provider' => 'midtrans',
+        'provider_refund_key' => 'meja-refund-in-flight-1',
+        'status' => PaymentRefundStatus::Pending,
+        'amount' => $workspace['payment']->amount,
+        'currency' => $workspace['payment']->currency,
+        'reason' => 'Refund sebelumnya sedang diproses',
+        'requested_by' => $workspace['user']->id,
+        'requested_at' => now(),
+    ]);
+    Http::fake();
+
+    $this->actingAs($workspace['user'])
+        ->withSession(paymentRefundSession($workspace))
+        ->withHeaders(['Idempotency-Key' => 'refund-in-flight-2'])
+        ->post(route('orders.refund', $workspace['order']), ['reason' => 'Tidak boleh refund kedua'])
+        ->assertConflict();
+
+    expect(PaymentRefund::withoutGlobalScopes()->count())->toBe(1);
+    Http::assertNothingSent();
+});
+
 test('refund route requires the payment refund permission and active outlet context', function () {
     $workspace = createPaymentRefundWorkspace(false);
     Http::fake();

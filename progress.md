@@ -1,6 +1,6 @@
 # Progress Pengembangan
 
-Terakhir diperbarui: 1 September 2026
+Terakhir diperbarui: 3 September 2026
 
 ## Selesai - Frontend Foundation
 
@@ -9,7 +9,7 @@ Terakhir diperbarui: 1 September 2026
 - [x] Customer menu mobile-first: outlet/meja, kategori, pencarian, detail produk, modifier, catatan, dan cart CTA.
 - [x] Checkout demo: ringkasan item, identitas meja, nama opsional, metode pembayaran, pajak, dan total.
 - [x] Tracking order demo: status aktif, timeline, estimasi, detail item, dan akses struk.
-- [x] Dashboard owner: metrik outlet, grafik penjualan, target, dan order terkini.
+- [x] Dashboard owner: metrik outlet, penjualan terverifikasi hari ini, order aktif, dan kesiapan katalog/meja aktual.
 - [x] Live order board: filter status, detail item, dan transisi status order berbasis database.
 - [x] Pengelolaan produk: kategori, pencarian, harga, status tersedia/habis, dan aksi produk; create, update, delete, availability, varian, modifier, serta lifecycle gambar sudah tersedia.
 - [x] Pengelolaan meja: zona, status, pratinjau QR, download, cetak, dan regenerasi; create, update, toggle status, dan aksi QR sudah tersedia.
@@ -138,6 +138,14 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Tambahkan backup verification dan isolated restore drill untuk SQLite.
 - [x] Tambahkan opt-in quarterly restore drill untuk backup SQLite terbaru.
 
+## Selesai - Superadmin Platform
+
+- [x] Dashboard platform lintas tenant dengan metrik tenant, subscription, invoice, payment pending, dan event webhook yang belum diproses.
+- [x] Pengelolaan tenant dengan pencarian nama/slug/email owner, filter status, pagination, ringkasan outlet/member, detail workspace, dan perubahan status ter-audit.
+- [x] Monitoring payment/webhook dengan filter provider/event/status, detail event aman tanpa payload sensitif, daftar payment pending, dan action rekonsiliasi Midtrans.
+- [x] Audit log platform dengan pencarian event/tenant/resource/request ID, pagination, actor, dan metadata korelasi tanpa membocorkan payload payment.
+- [x] Endpoint `platform.payments.reconcile` dilindungi `platform.admin`, memicu `ReconcilePaymentJob`, dan mencatat `platform.payment.reconciliation_requested`.
+
 ## Audit Gap PRD - 31 Agustus 2026 (Status Terkini)
 
 - [x] Lengkapi product CRUD untuk mengubah atau menghapus nama, harga, deskripsi, kategori, foto, dan flag produk dengan policy serta isolasi outlet.
@@ -147,16 +155,29 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Jalankan server Reverb pada deployment produksi melalui service `reverb` di `docker-compose.yml`; runtime deployment dan TLS masih menunggu environment Docker.
 - [x] Jalankan restore drill MySQL pada target disposable terisolasi: backup `20260901_041139Z` valid, gzip/checksum lulus, 13 asset entries terdeteksi, dan restore drill berhasil dalam 4,995 detik; RPO produksi tetap memerlukan target recovery operator.
 
+## Audit Gap PRD - 3 September 2026 (Status Terkini)
+
+- [x] Tambahkan preview cart authoritative dengan fingerprint quote; checkout menolak harga/ketersediaan stale dan meminta konfirmasi ulang.
+- [x] Lengkapi retry payment untuk status `failed`/`expired`, pemilihan QRIS/e-wallet/VA, status pengecualian tracking customer, serta filter table dan rentang tanggal order board.
+- [x] Amankan provisioning staf dengan secret acak dan notifikasi reset password, bukan password default.
+- [x] Batasi analytics publik ke event browser yang aman; event order/payment lifecycle hanya direkam server-side.
+- [x] Cegah refund penuh ganda dengan mengunci satu refund pending/sukses per payment; tambahkan regression test untuk idempotency key berbeda saat refund masih berjalan.
+- [x] Expire invoice subscription yang melewati jatuh tempo sebelum renewal, jadwalkan command expiry, gunakan interval billing plan untuk periode invoice, dan audit setiap expiry.
+- [x] Revalidasi entitlement subscription di dalam transaction checkout; tambah `no-store` dan `no-referrer` pada tracking/token order serta JSON publik.
+- [x] Kerasikan baseline produksi: cookie sesi otomatis `Secure` saat production, Compose mewajibkan credential DB/Reverb, dan seeder memerlukan credential dari config/env tanpa default password yang dikomit.
+- [ ] Funnel analytics browser tetap bersifat indikatif untuk guest anonymous. Event conversion kritis berasal dari server, namun deduplikasi berbasis nonce server-side belum menjadi scope MVP.
+- [ ] Partial refund belum tersedia pada MVP. Jika diaktifkan, agregasi laporan harus menghitung nominal net dari refund parsial.
+
 ## Verifikasi Terakhir
 
-- [x] `php artisan test --compact`: 176 test lulus, 1.378 assertion; termasuk full flow ordering/payment, auth, SaaS, reports, backup, analytics, observability, CRUD operasional, refund, dan queue reconciliation.
+- [x] `php artisan test --compact`: 192 test lulus, 1.506 assertion; termasuk full flow ordering/payment, quote stale, payment retry, auth, SaaS, reports, backup, analytics, observability, CRUD operasional, refund concurrency, queue reconciliation, dan platform admin.
 - [x] `composer run lint:check`: Pint lulus.
 - [x] `composer run types:check`: PHPStan lulus tanpa error.
 - [x] `npm run types:check`: TypeScript lulus.
 - [x] `npm run build`: build produksi lulus; hanya ada warning opsional package `fontaine`.
 - [x] `php artisan migrate --force`: seluruh migration lokal, termasuk refund, Google identity, dan analytics, sudah diterapkan; `migrate:fresh --force` juga lulus pada MySQL disposable.
 - [x] Dependency lokal disinkronkan melalui `composer install`; `laravel/socialite` v5.30.1 sebelumnya ada di lockfile tetapi belum terpasang di `vendor`.
-- [x] `npm run check`: lulus setelah baseline source diformat; 35 file frontend lama ikut dirapikan dan direktori tooling internal tetap dikecualikan.
+- [x] `npm run check`: lulus; 102 file terformat benar dan 89 file frontend lulus tanpa warning/error.
 - [ ] `docker compose config --quiet` dan runtime Compose: Docker CLI tidak tersedia pada environment ini.
 
 ## Quality Gate Berikutnya
@@ -172,6 +193,7 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Feature test propagation correlation ID dan korelasi audit request.
 - [x] Feature test structured telemetry, redaction atribut, dan health threshold.
 - [x] Feature test CRUD produk/meja, lifecycle gambar, refund penuh idempotent/failure/permission, dan queued reconciliation.
+- [x] Feature test quote checkout stale, retry payment, filter order, analytics public/server boundary, invoice expiry/interval, subscription recheck checkout, tracking cache header, dan refund in-flight.
 - [x] Sediakan browser/E2E tooling lalu uji alur scan QR sampai struk pada viewport 360 px, tablet, dan desktop dengan Playwright; seluruh 12 test matrix lulus.
 - [x] Audit aksesibilitas axe, Core Web Vitals dasar, overflow, optimasi gambar, empty/error/loading state, dan koneksi offline/lambat pada browser test lulus.
 - [x] Rapikan baseline formatting source pada `npm run check`; full check lulus tanpa warning/error.

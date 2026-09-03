@@ -75,3 +75,15 @@ test('database seeder is idempotent and assigns tenant owner permissions', funct
         ->and($owner->hasRole('owner'))->toBeTrue()
         ->and($owner->can('menu.manage'))->toBeTrue();
 });
+
+test('database seeder creates an authenticated platform superadmin', function () {
+    $this->seed(DatabaseSeeder::class);
+    $this->seed(DatabaseSeeder::class);
+
+    $superAdmin = User::query()->where('email', 'superadmin@meja.test')->firstOrFail();
+
+    expect(User::query()->where('email', 'superadmin@meja.test')->count())->toBe(1)
+        ->and($superAdmin->name)->toBe('Super Admin')
+        ->and($superAdmin->is_platform_admin)->toBeTrue()
+        ->and($superAdmin->email_verified_at)->not->toBeNull();
+});
