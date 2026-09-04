@@ -98,9 +98,11 @@ async function handleMockRequest(request, response, mockPort) {
 
         const grossAmount = `${session.grossAmount}.00`;
         const transactionTime = new Date().toISOString();
+        const transactionStatus =
+            requestUrl.searchParams.get('status') ?? 'settlement';
         const payload = {
-            transaction_id: `e2e-transaction-${token}`,
-            transaction_status: 'settlement',
+            transaction_id: `e2e-transaction-${token}-${transactionStatus}`,
+            transaction_status: transactionStatus,
             order_id: session.orderId,
             status_code: '200',
             gross_amount: grossAmount,
@@ -113,6 +115,11 @@ async function handleMockRequest(request, response, mockPort) {
                 )
                 .digest('hex'),
         };
+
+        if (transactionStatus === 'refund') {
+            payload.refund_amount = grossAmount;
+        }
+
         const webhook = await fetch(`${appUrl}/api/webhooks/midtrans`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
@@ -185,6 +192,7 @@ async function start() {
         MIDTRANS_SNAP_URL: `http://127.0.0.1:${mockPort}/snap/v1/transactions`,
         MIDTRANS_STATUS_URL: `http://127.0.0.1:${mockPort}/v2`,
         MIDTRANS_REFUND_URL: `http://127.0.0.1:${mockPort}/v2`,
+        MIDTRANS_SERVER_KEY: midtransServerKey,
     };
     const clearConfig = spawnSync('php', ['artisan', 'config:clear'], {
         cwd: root,

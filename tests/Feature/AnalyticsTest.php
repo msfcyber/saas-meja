@@ -8,6 +8,15 @@ use App\Models\Product;
 use App\Models\TableQrToken;
 use App\Models\Tenant;
 use App\Services\AnalyticsEventService;
+use App\Services\PublicAnalyticsSessionService;
+use App\Support\PublicTableAccess;
+
+function analyticsTokenFor(string $plainToken, TableQrToken $qrToken, Tenant $tenant, Outlet $outlet, DiningTable $table): string
+{
+    return app(PublicAnalyticsSessionService::class)->issue(
+        new PublicTableAccess($plainToken, $qrToken, $tenant, $outlet, $table),
+    )['token'];
+}
 
 test('public analytics records an accepted event with hashed identifiers', function () {
     $tenant = Tenant::factory()->withTrialSubscription()->create();
@@ -15,14 +24,14 @@ test('public analytics records an accepted event with hashed identifiers', funct
     $table = DiningTable::factory()->for($outlet)->create();
     $product = Product::factory()->for(Category::factory()->for($outlet))->create();
     $plainToken = str_repeat('a', 64);
-    TableQrToken::factory()->for($table, 'table')->create([
+    $tableQrToken = TableQrToken::factory()->for($table, 'table')->create([
         'token_hash' => hash('sha256', $plainToken),
     ]);
 
     $this->postJson(route('analytics.events.store'), [
         'event' => 'add_to_cart',
         'qr_token' => $plainToken,
-        'session_id' => 'browser-session-1',
+        'analytics_token' => analyticsTokenFor($plainToken, $tableQrToken, $tenant, $outlet, $table),
         'product_id' => $product->id,
     ])
         ->assertAccepted()
@@ -34,7 +43,7 @@ test('public analytics records an accepted event with hashed identifiers', funct
         ->and($event->outlet_id)->toBe($outlet->id)
         ->and($event->product_id)->toBe($product->id)
         ->and($event->event)->toBe('add_to_cart')
-        ->and($event->session_hash)->toBe(hash('sha256', 'browser-session-1'))
+        ->and($event->session_hash)->not->toBeNull()
         ->and($event->qr_token_hash)->toBe(hash('sha256', $plainToken));
 });
 
@@ -64,14 +73,14 @@ test('public analytics rejects a foreign product for the QR outlet', function ()
     $foreignOutlet = Outlet::factory()->for($tenant)->create();
     $foreignProduct = Product::factory()->for(Category::factory()->for($foreignOutlet))->create();
     $plainToken = str_repeat('b', 64);
-    TableQrToken::factory()->for($table, 'table')->create([
+    $tableQrToken = TableQrToken::factory()->for($table, 'table')->create([
         'token_hash' => hash('sha256', $plainToken),
     ]);
 
     $this->postJson(route('analytics.events.store'), [
         'event' => 'product_viewed',
         'qr_token' => $plainToken,
-        'session_id' => 'browser-session-2',
+        'analytics_token' => analyticsTokenFor($plainToken, $tableQrToken, $tenant, $outlet, $table),
         'product_id' => $foreignProduct->id,
     ])->assertUnprocessable();
 
@@ -88,4 +97,58 @@ test('public analytics rejects server-only lifecycle events', function () {
         ->assertJsonValidationErrors('event');
 
     expect(AnalyticsEvent::query()->count())->toBe(0);
+});
+
+test('public analytics rejects a token signed for another QR', function () {
+    $tenant = Tenant::factory()->withTrialSubscription()->create();
+    $outlet = Outlet::factory()->for($tenant)->create();
+    $table = DiningTable::factory()->for($outlet)->create();
+    $otherTable = DiningTable::factory()->for($outlet)->create();
+    $plainToken = str_repeat('d', 64);
+    $otherPlainToken = str_repeat('e', 64);
+    $tableQrToken = TableQrToken::factory()->for($table, 'table')->create(['token_hash' => hash('sha256', $plainToken)]);
+    TableQrToken::factory()->for($otherTable, 'table')->create(['token_hash' => hash('sha256', $otherPlainToken)]);
+
+    $this->postJson(route('analytics.events.store'), [
+        'event' => 'checkout_started',
+        'qr_token' => $otherPlainToken,
+        'analytics_token' => analyticsTokenFor($plainToken, $tableQrToken, $tenant, $outlet, $table),
+    ])->assertUnprocessable()->assertJsonValidationErrors('analytics_token');
+});
+
+test('public analytics rejects an expired token', function () {
+    $tenant = Tenant::factory()->withTrialSubscription()->create();
+    $outlet = Outlet::factory()->for($tenant)->create();
+    $table = DiningTable::factory()->for($outlet)->create();
+    $plainToken = str_repeat('e', 64);
+    $tableQrToken = TableQrToken::factory()->for($table, 'table')->create(['token_hash' => hash('sha256', $plainToken)]);
+    $analyticsToken = analyticsTokenFor($plainToken, $tableQrToken, $tenant, $outlet, $table);
+
+    $this->travel(61)->minutes();
+
+    $this->postJson(route('analytics.events.store'), [
+        'event' => 'checkout_started',
+        'qr_token' => $plainToken,
+        'analytics_token' => $analyticsToken,
+    ])->assertUnprocessable()->assertJsonValidationErrors('analytics_token');
+
+    $this->travelBack();
+});
+
+test('public analytics deduplicates identical browser events for one minute', function () {
+    $tenant = Tenant::factory()->withTrialSubscription()->create();
+    $outlet = Outlet::factory()->for($tenant)->create();
+    $table = DiningTable::factory()->for($outlet)->create();
+    $plainToken = str_repeat('f', 64);
+    $tableQrToken = TableQrToken::factory()->for($table, 'table')->create(['token_hash' => hash('sha256', $plainToken)]);
+    $payload = [
+        'event' => 'checkout_started',
+        'qr_token' => $plainToken,
+        'analytics_token' => analyticsTokenFor($plainToken, $tableQrToken, $tenant, $outlet, $table),
+    ];
+
+    $this->postJson(route('analytics.events.store'), $payload)->assertAccepted();
+    $this->postJson(route('analytics.events.store'), $payload)->assertAccepted();
+
+    expect(AnalyticsEvent::query()->where('event', 'checkout_started')->count())->toBe(1);
 });

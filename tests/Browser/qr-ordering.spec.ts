@@ -247,6 +247,80 @@ test('checkout exposes its loading state while the network is slow', async ({
     await page.unroute('**/api/public/orders');
 });
 
+test('checkout reconfirms a changed quote, retries an expired payment, and handles refunded tracking', async ({
+    page,
+}) => {
+    let quoteChanged = false;
+    let paymentVisit = 0;
+    let successfulPaymentUrl = '';
+
+    await page.route('**/api/public/carts/validate', async (route) => {
+        const response = await route.fetch();
+        const body = (await response.json()) as {
+            quote: { grand_total: number; tax_amount: number };
+        };
+
+        if (!quoteChanged) {
+            quoteChanged = true;
+            body.quote.grand_total += 1000;
+            body.quote.tax_amount += 1000;
+        }
+
+        await route.fulfill({ response, json: body });
+    });
+    await page.route('**/payment/e2e-snap-*', async (route) => {
+        paymentVisit += 1;
+        const paymentUrl = new URL(route.request().url());
+
+        if (paymentVisit === 1) {
+            paymentUrl.searchParams.set('status', 'expire');
+        } else {
+            successfulPaymentUrl = paymentUrl.toString();
+        }
+
+        await route.continue({ url: paymentUrl.toString() });
+    });
+
+    await page.goto(`/q/${qrToken}`, { waitUntil: 'domcontentloaded' });
+    await page
+        .getByRole('region', { name: 'Pilih hidangan favorit' })
+        .getByRole('button', { name: `Lihat detail ${productName}` })
+        .click();
+    await page
+        .getByRole('dialog')
+        .getByRole('button', { name: /Tambahkan/ })
+        .click();
+    await page.getByRole('link', { name: /Lihat pesanan/ }).click();
+    await page.getByRole('button', { name: 'Lanjutkan pembayaran' }).click();
+    await expect(page.getByRole('alert')).toContainText(
+        'Harga atau ketersediaan menu berubah.',
+    );
+    await page.getByRole('button', { name: 'Konfirmasi & lanjutkan' }).click();
+    await expect(
+        page.getByRole('heading', {
+            name: 'Waktu pembayaran sebelumnya sudah berakhir.',
+        }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Coba pembayaran lagi' }).click();
+    await expect(
+        page.getByRole('heading', { name: 'Pesananmu sudah diterima.' }),
+    ).toBeVisible();
+    expect(successfulPaymentUrl).not.toBe('');
+
+    await page.goto(`${successfulPaymentUrl}?status=refund`, {
+        waitUntil: 'domcontentloaded',
+    });
+    await expect(
+        page.getByRole('heading', { name: 'Pesanan ini sudah dikembalikan.' }),
+    ).toBeVisible();
+    await expect(
+        page
+            .getByRole('status')
+            .filter({ hasText: 'Status ini adalah hasil akhir' }),
+    ).toBeVisible();
+});
+
 test('invalid QR and empty search states remain actionable', async ({
     page,
 }) => {

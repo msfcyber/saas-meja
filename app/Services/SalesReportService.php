@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -40,9 +39,9 @@ final class SalesReportService
         $outletId = $this->outletId($filters);
         $orders = $this->orders($tenant, $outletId, $from, $toExclusive);
         $sales = (clone $orders)->whereIn('status', self::SALES_STATUSES);
-        $refunded = (clone $orders)->where('status', OrderStatus::Refunded->value);
         $orderCount = (int) $sales->count();
         $grossSales = (int) $sales->sum('grand_total');
+        $refunds = $this->refundSummary($orders);
 
         return [
             'filters' => [
@@ -54,8 +53,8 @@ final class SalesReportService
                 'orders' => $orderCount,
                 'gross_sales' => $grossSales,
                 'average_order' => $orderCount === 0 ? 0 : intdiv($grossSales, $orderCount),
-                'refunded_orders' => (int) $refunded->count(),
-                'refunded_amount' => (int) $refunded->sum('grand_total'),
+                'refunded_orders' => $refunds['orders'],
+                'refunded_amount' => $refunds['amount'],
             ],
             'payment_methods' => $this->paymentMethods($sales),
             'daily_sales' => $this->dailySales($sales, $tenant->timezone ?: 'UTC'),
@@ -133,6 +132,31 @@ final class SalesReportService
         }
 
         return $result;
+    }
+
+    /**
+     * @param  Builder<Order>  $orders
+     * @return array{orders: int, amount: int}
+     */
+    private function refundSummary(Builder $orders): array
+    {
+        $payments = Payment::withoutGlobalScopes()
+            ->whereIn('order_id', (clone $orders)->select('id'))
+            ->whereIn('status', [PaymentStatus::Refunded, PaymentStatus::PartiallyRefunded])
+            ->get(['order_id', 'amount', 'status', 'metadata']);
+        $orderIds = [];
+        $amount = 0;
+
+        foreach ($payments as $payment) {
+            $orderIds[(int) $payment->order_id] = true;
+            $metadata = is_array($payment->metadata) ? $payment->metadata : [];
+            $partialAmount = $metadata['refund_amount'] ?? null;
+            $amount += $payment->status === PaymentStatus::PartiallyRefunded && is_numeric($partialAmount)
+                ? min((int) $payment->amount, max(0, (int) $partialAmount))
+                : (int) $payment->amount;
+        }
+
+        return ['orders' => count($orderIds), 'amount' => $amount];
     }
 
     /**

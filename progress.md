@@ -1,6 +1,6 @@
 # Progress Pengembangan
 
-Terakhir diperbarui: 3 September 2026
+Terakhir diperbarui: 4 September 2026
 
 ## Selesai - Frontend Foundation
 
@@ -198,3 +198,13 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Audit aksesibilitas axe, Core Web Vitals dasar, overflow, optimasi gambar, empty/error/loading state, dan koneksi offline/lambat pada browser test lulus.
 - [x] Rapikan baseline formatting source pada `npm run check`; full check lulus tanpa warning/error.
 - [ ] Jalankan validasi runtime Docker untuk Compose, Reverb, dan Redis worker; Docker CLI tidak tersedia. Restore drill MySQL disposable sudah lulus.
+
+## Production Hardening - 4 September 2026
+
+- [x] Analytics browser menggunakan token bertanda tangan HMAC yang berisi session acak, hash QR, dan expiry satu jam; browser tidak lagi dapat mengirim `session_id` pilihannya sendiri.
+- [x] Endpoint analytics memvalidasi token terhadap QR aktif dan mendeduplikasi event browser yang identik selama satu menit; test mencakup token QR lain, token expired, dan duplicate delivery.
+- [x] Reconciliation refund pending Midtrans, expiry invoice subscription, partial-refund amount reporting, health threshold operasional, CI checks, dan skenario browser tambahan tersedia.
+- [x] Perbaiki assertion upload image invalid agar memeriksa direktori tenant/outlet yang diuji, tidak bergantung pada isi root storage fake dari fixture lain.
+- [x] `php artisan test --compact`: 196 test lulus, 1.519 assertion.
+- [x] `composer run types:check`, `composer run lint:check`, dan `npm run types:check` lulus.
+- [ ] `npm run build` tertahan `EPERM` saat menghapus `public/build/assets`; direktori sedang dikunci proses lain pada host lokal.

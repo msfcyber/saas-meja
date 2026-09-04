@@ -107,6 +107,21 @@ final class PaymentWebhookService
                 }
             }
 
+            if (in_array($payment->status, [PaymentStatus::PartiallyRefunded, PaymentStatus::Refunded], true)) {
+                $metadata = is_array($payment->metadata) ? $payment->metadata : [];
+                $gatewayMetadata = $data['metadata'] ?? [];
+
+                if (is_array($gatewayMetadata)) {
+                    $refundAmount = $gatewayMetadata['refund_amount'] ?? null;
+
+                    if (is_numeric($refundAmount)) {
+                        $metadata['refund_amount'] = (int) $refundAmount;
+                    }
+                }
+
+                $payment->metadata = $metadata;
+            }
+
             $payment->save();
             $event->update(['processed_at' => now()]);
 

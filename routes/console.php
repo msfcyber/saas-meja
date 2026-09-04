@@ -1,16 +1,21 @@
 <?php
 
+use App\Enums\PaymentRefundStatus;
 use App\Enums\PaymentStatus;
+use App\Enums\SaasInvoiceStatus;
 use App\Enums\SubscriptionStatus;
 use App\Jobs\ReconcilePaymentJob;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
+use App\Models\PaymentRefund;
+use App\Models\SaasInvoice;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\BackupService;
 use App\Services\PaymentLifecycleService;
 use App\Services\PaymentReconciliationService;
+use App\Services\PaymentRefundService;
 use App\Services\SaasInvoiceService;
 use App\Services\TelemetryService;
 use Illuminate\Foundation\Inspiring;
@@ -74,6 +79,16 @@ Artisan::command('payments:expire {--limit=100}', function (PaymentLifecycleServ
 
     return 0;
 })->purpose('Expire overdue pending payments');
+
+Artisan::command('refunds:reconcile {--limit=100}', function (PaymentRefundService $refunds): int {
+    $limit = filter_var($this->option('limit'), FILTER_VALIDATE_INT);
+    $limit = $limit === false ? 100 : max(1, min(500, $limit));
+    $resolved = $refunds->reconcilePending($limit);
+
+    $this->info("Refund direkonsiliasi: {$resolved}.");
+
+    return 0;
+})->purpose('Reconcile pending Midtrans refunds before allowing retries');
 
 Artisan::command('subscriptions:expire-invoices {--limit=100}', function (SaasInvoiceService $invoices): int {
     $limit = filter_var($this->option('limit'), FILTER_VALIDATE_INT);
@@ -192,6 +207,10 @@ Schedule::command('payments:reconcile --limit=100')
 
 Schedule::command('payments:expire --limit=100')
     ->everyMinute()
+    ->withoutOverlapping();
+
+Schedule::command('refunds:reconcile --limit=100')
+    ->everyFiveMinutes()
     ->withoutOverlapping();
 
 Schedule::command('subscriptions:expire-invoices --limit=100')
@@ -339,10 +358,40 @@ Artisan::command('ops:health {--json : Output machine-readable JSON}', function 
         $addCheck(
             'stale_payment_events',
             $staleEvents > 0 ? 'warning' : 'ok',
-            "{$staleEvents} (older than {$staleMinutes} minutes)",
+            "{$staleEvents} (older than {$staleMinutes} minutes; inspect webhook processing)",
         );
     } catch (Throwable $exception) {
         $addCheck('stale_payment_events', 'fail', $exception::class);
+    }
+
+    $pendingRefundThreshold = (int) config('observability.pending_refunds_threshold', 0);
+
+    try {
+        $pendingRefunds = PaymentRefund::withoutGlobalScopes()
+            ->where('status', PaymentRefundStatus::Pending->value)
+            ->count();
+        $addCheck(
+            'pending_refunds',
+            $pendingRefunds > $pendingRefundThreshold ? 'warning' : 'ok',
+            "{$pendingRefunds} (threshold {$pendingRefundThreshold}; review refund requests)",
+        );
+    } catch (Throwable $exception) {
+        $addCheck('pending_refunds', 'fail', $exception::class);
+    }
+
+    $pendingInvoiceThreshold = (int) config('observability.pending_invoices_threshold', 100);
+
+    try {
+        $pendingInvoices = SaasInvoice::withoutGlobalScopes()
+            ->where('status', SaasInvoiceStatus::Pending->value)
+            ->count();
+        $addCheck(
+            'pending_invoices',
+            $pendingInvoices > $pendingInvoiceThreshold ? 'warning' : 'ok',
+            "{$pendingInvoices} (threshold {$pendingInvoiceThreshold}; review subscription collections)",
+        );
+    } catch (Throwable $exception) {
+        $addCheck('pending_invoices', 'fail', $exception::class);
     }
 
     $summary = [

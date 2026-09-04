@@ -26,6 +26,7 @@ import type { CustomerCartItem } from '@/types/customer';
 type Props = {
     access?: { valid: boolean; message: string | null };
     qr_token?: string;
+    analytics_token?: string;
     outlet?: { name: string; currency: string } | null;
     table?: { name: string; code: string } | null;
     tax?: {
@@ -188,6 +189,7 @@ function quoteMatchesCart(
 export default function Checkout({
     access,
     qr_token,
+    analytics_token,
     outlet,
     table,
     tax,
@@ -212,10 +214,13 @@ export default function Checkout({
     }, [cart, qr_token]);
 
     useEffect(() => {
-        if (isPublicCheckout && qr_token) {
-            trackAnalytics('checkout_started', { qrToken: qr_token });
+        if (isPublicCheckout && qr_token && analytics_token) {
+            trackAnalytics('checkout_started', {
+                qrToken: qr_token,
+                analyticsToken: analytics_token,
+            });
         }
-    }, [isPublicCheckout, qr_token]);
+    }, [analytics_token, isPublicCheckout, qr_token]);
 
     const activeCart = isPublicCheckout ? cart : demoCartItems;
     const subtotal = activeCart.reduce(

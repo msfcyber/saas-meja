@@ -6,6 +6,7 @@ use App\Models\AnalyticsEvent;
 use App\Support\PublicTableAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use InvalidArgumentException;
 
 final class AnalyticsEventService
@@ -76,9 +77,20 @@ final class AnalyticsEventService
         ?int $productId = null,
         ?int $orderId = null,
         array $properties = [],
-    ): AnalyticsEvent {
+    ): ?AnalyticsEvent {
         if (! in_array($event, self::PUBLIC_EVENTS, true)) {
             throw new InvalidArgumentException("Public analytics event [{$event}] tidak didukung.");
+        }
+
+        $deduplicationKey = 'analytics-event:'.hash('sha256', implode('|', [
+            $event,
+            $access->plainToken,
+            $sessionId ?? '',
+            $productId ?? '',
+        ]));
+
+        if ($sessionId !== null && ! Cache::add($deduplicationKey, true, 60)) {
+            return null;
         }
 
         return $this->record($event, (int) $access->tenant->getKey(), (int) $access->outlet->getKey(), [

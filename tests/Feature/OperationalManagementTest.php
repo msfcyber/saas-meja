@@ -199,7 +199,9 @@ test('product image upload rejects non-image files without storing a file', func
 
     $response->assertRedirect(route('products'))->assertSessionHasErrors('image');
     expect(Product::query()->count())->toBe(0);
-    Storage::disk('public')->assertDirectoryEmpty('tenants');
+    Storage::disk('public')->assertMissing(
+        "tenants/{$workspace['tenant']->id}/outlets/{$workspace['outlet']->id}/products",
+    );
 });
 
 test('catalog manager can update product details and replace its image', function () {

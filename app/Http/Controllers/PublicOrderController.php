@@ -15,6 +15,7 @@ use App\Services\AnalyticsEventService;
 use App\Services\PaymentCheckoutService;
 use App\Services\PaymentGatewayException;
 use App\Services\PaymentLifecycleService;
+use App\Services\PublicAnalyticsSessionService;
 use App\Services\PublicOrderService;
 use App\Services\PublicTableAccessService;
 use Illuminate\Http\JsonResponse;
@@ -27,7 +28,7 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class PublicOrderController extends Controller
 {
-    public function checkout(Request $request, string $qrToken, PublicTableAccessService $accessService): Response
+    public function checkout(Request $request, string $qrToken, PublicTableAccessService $accessService, PublicAnalyticsSessionService $analyticsSessions): Response
     {
         $access = $accessService->resolve($qrToken);
 
@@ -52,6 +53,7 @@ class PublicOrderController extends Controller
         return Inertia::render('customer/checkout', [
             'access' => ['valid' => true, 'message' => null],
             'qr_token' => $qrToken,
+            'analytics_token' => $analyticsSessions->issue($access)['token'],
             'outlet' => [
                 'name' => $access->outlet->name,
                 'currency' => $access->outlet->currency,

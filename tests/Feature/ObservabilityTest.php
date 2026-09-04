@@ -1,11 +1,20 @@
 <?php
 
+use App\Enums\PaymentRefundStatus;
+use App\Enums\SaasInvoiceStatus;
 use App\Models\AuditLog;
+use App\Models\Payment;
+use App\Models\PaymentEvent;
+use App\Models\PaymentRefund;
+use App\Models\SaasInvoice;
+use App\Models\Subscription;
+use App\Models\Tenant;
 use App\Services\AuditLogService;
 use App\Services\TelemetryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Queue\Events\QueueBusy;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -133,4 +142,52 @@ test('ops health detects failed jobs above the configured threshold', function (
     $this->artisan('ops:health', ['--json' => true])
         ->expectsOutputToContain('"status":"degraded"')
         ->assertExitCode(1);
+});
+
+test('ops health warns about stale payment events and pending financial work above thresholds', function () {
+    $payment = Payment::factory()->create();
+    PaymentEvent::withoutGlobalScopes()->create([
+        'tenant_id' => $payment->tenant_id,
+        'outlet_id' => $payment->outlet_id,
+        'payment_id' => $payment->id,
+        'provider' => 'midtrans',
+        'event_id' => 'health-stale-event',
+        'event_type' => 'payment.paid',
+        'amount' => $payment->amount,
+        'currency' => $payment->currency,
+        'occurred_at' => now()->subMinutes(16),
+        'payload_hash' => hash('sha256', 'health-stale-event'),
+        'payload' => [],
+    ]);
+    PaymentRefund::withoutGlobalScopes()->create([
+        'tenant_id' => $payment->tenant_id,
+        'outlet_id' => $payment->outlet_id,
+        'payment_id' => $payment->id,
+        'idempotency_key' => 'health-pending-refund',
+        'provider' => 'midtrans',
+        'provider_refund_key' => 'health-pending-refund',
+        'status' => PaymentRefundStatus::Pending,
+        'amount' => $payment->amount,
+        'currency' => $payment->currency,
+        'reason' => 'Health check fixture.',
+        'requested_at' => now(),
+    ]);
+    $tenant = Tenant::factory()->create();
+    $subscription = Subscription::factory()->for($tenant)->create();
+    SaasInvoice::factory()->for($subscription, 'subscription')->create([
+        'status' => SaasInvoiceStatus::Pending,
+    ]);
+
+    config([
+        'observability.stale_payment_event_minutes' => 15,
+        'observability.pending_refunds_threshold' => 0,
+        'observability.pending_invoices_threshold' => 0,
+    ]);
+
+    expect(Artisan::call('ops:health', ['--json' => true]))->toBe(1);
+
+    expect(Artisan::output())
+        ->toContain('"check":"stale_payment_events","status":"warning"')
+        ->toContain('"check":"pending_refunds","status":"warning"')
+        ->toContain('"check":"pending_invoices","status":"warning"');
 });

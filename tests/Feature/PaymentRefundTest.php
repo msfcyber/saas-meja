@@ -123,7 +123,7 @@ test('authorized staff can issue an idempotent full Midtrans refund', function (
     Http::assertSentCount(1);
 });
 
-test('refund gateway failures remain retryable only with a new idempotency key and preserve payment state', function () {
+test('refund gateway failures require reconciliation and preserve payment state', function () {
     $workspace = createPaymentRefundWorkspace();
     Http::fake([
         'https://api.sandbox.midtrans.com/v2/*/refund' => Http::response([
@@ -141,11 +141,11 @@ test('refund gateway failures remain retryable only with a new idempotency key a
         ->assertSessionHasErrors('refund');
 
     $refund = PaymentRefund::withoutGlobalScopes()->firstOrFail();
-    expect($refund->status)->toBe(PaymentRefundStatus::Failed)
+    expect($refund->status)->toBe(PaymentRefundStatus::Pending)
         ->and($workspace['payment']->fresh()->status)->toBe(PaymentStatus::Paid)
         ->and($workspace['order']->fresh()->status)->toBe(OrderStatus::Paid);
     $this->assertDatabaseHas('audit_logs', [
-        'event' => 'payment.refund_failed',
+        'event' => 'payment.refund_reconciliation_required',
         'auditable_id' => $refund->id,
     ]);
 });

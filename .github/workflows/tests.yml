@@ -1,4 +1,4 @@
-name: tests
+name: CI
 
 on:
   push:
@@ -30,9 +30,49 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
+          cache: npm
 
-      - name: Setup Application
-        run: composer setup
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Run CI Checks
-        run: composer ci:check
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Prepare application
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+
+      - name: Check PHP formatting
+        run: composer lint:check
+
+      - name: Run PHP static analysis
+        run: composer types:check
+
+      - name: Run PHP tests
+        run: php artisan test
+
+      - name: Check Node formatting
+        run: npm run check
+
+      - name: Check Node types
+        run: npm run types:check
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run end-to-end tests
+        run: npm run test:e2e
+
+      - name: Validate Docker Compose configuration
+        shell: bash
+        run: |
+          if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+            echo 'Docker is unavailable; skipping Docker Compose validation.'
+            exit 0
+          fi
+
+          DB_DATABASE=meja DB_USERNAME=meja DB_PASSWORD=meja DB_ROOT_PASSWORD=root REVERB_APP_ID=ci REVERB_APP_KEY=ci-reverb-key REVERB_APP_SECRET=ci-reverb-secret docker compose config --quiet

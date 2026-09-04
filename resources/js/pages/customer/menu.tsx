@@ -38,6 +38,7 @@ type Props = {
         valid: boolean;
         message: string | null;
         qr_token?: string | null;
+        analytics_token?: string | null;
     };
     outlet?: { name: string; address: string | null; currency: string } | null;
     table?: { name: string; code: string } | null;
@@ -92,6 +93,7 @@ export default function Menu({
 }: Props) {
     const isPublicMenu = access !== undefined;
     const qrToken = access?.qr_token ?? null;
+    const analyticsToken = access?.analytics_token ?? null;
     const items: CustomerMenuItem[] = products ?? menuItems;
     const categories = providedCategories
         ? ['Semua', ...providedCategories]
@@ -158,9 +160,10 @@ export default function Menu({
         setSelectedNote('');
         setDialogError(null);
 
-        if (isPublicMenu && qrToken) {
+        if (isPublicMenu && qrToken && analyticsToken) {
             trackAnalytics('product_viewed', {
                 qrToken,
+                analyticsToken,
                 productId: item.id,
             });
         }
@@ -274,10 +277,13 @@ export default function Menu({
                 },
             ];
         });
-        trackAnalytics('add_to_cart', {
-            qrToken,
-            productId: selected.id,
-        });
+        if (analyticsToken) {
+            trackAnalytics('add_to_cart', {
+                qrToken,
+                analyticsToken,
+                productId: selected.id,
+            });
+        }
         setSelected(null);
     };
 

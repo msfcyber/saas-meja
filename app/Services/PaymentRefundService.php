@@ -115,7 +115,14 @@ final class PaymentRefundService
                 ? $exception->getMessage()
                 : 'Refund belum dapat diproses.';
             report($exception);
-            $this->markFailed($refund, $message);
+            $this->audits->record('payment.refund_reconciliation_required', [
+                'tenant_id' => (int) $refund->tenant_id,
+                'outlet_id' => (int) $refund->outlet_id,
+                'actor_type' => 'system',
+                'auditable_type' => PaymentRefund::class,
+                'auditable_id' => (int) $refund->getKey(),
+                'new_values' => ['reason' => $message],
+            ]);
 
             if ($exception instanceof PaymentGatewayException) {
                 throw $exception;
@@ -124,6 +131,66 @@ final class PaymentRefundService
             throw new PaymentGatewayException($message, previous: $exception);
         }
 
+        return $this->complete($refund, $payment, $result);
+    }
+
+    public function reconcilePending(int $limit = 100): int
+    {
+        $refunds = PaymentRefund::withoutGlobalScopes()
+            ->where('status', PaymentRefundStatus::Pending)
+            ->where('provider', 'midtrans')
+            ->orderBy('id')
+            ->limit(max(1, min(500, $limit)))
+            ->get();
+        $resolved = 0;
+
+        foreach ($refunds as $refund) {
+            $payment = Payment::withoutGlobalScopes()->find($refund->payment_id);
+
+            if ($payment === null) {
+                continue;
+            }
+
+            try {
+                $status = $this->gateways->for('midtrans')->getStatus($payment);
+            } catch (Throwable $exception) {
+                report($exception);
+
+                continue;
+            }
+
+            $providerRefund = null;
+            $providerRefunds = $status['refunds'] ?? [];
+
+            if (is_array($providerRefunds)) {
+                foreach ($providerRefunds as $entry) {
+                    if (is_array($entry) && ($entry['refund_key'] ?? null) === $refund->provider_refund_key) {
+                        $providerRefund = $entry;
+
+                        break;
+                    }
+                }
+            }
+
+            if (! is_array($providerRefund)) {
+                $this->markFailed($refund, 'Gateway belum mengakui refund ini; refund dapat dicoba kembali.');
+
+                continue;
+            }
+
+            $this->complete($refund, $payment, [
+                'provider_reference' => (string) ($providerRefund['refund_chargeback_id'] ?? $providerRefund['refund_chargeback_uuid'] ?? ''),
+                'response' => $status,
+            ]);
+            $resolved++;
+        }
+
+        return $resolved;
+    }
+
+    /** @param array{provider_reference: string|null, response: array<string, mixed>} $result */
+    private function complete(PaymentRefund $refund, Payment $payment, array $result): PaymentRefund
+    {
         return DB::transaction(function () use ($refund, $payment, $result): PaymentRefund {
             $lockedRefund = PaymentRefund::withoutGlobalScopes()
                 ->whereKey($refund->getKey())

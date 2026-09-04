@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Analytics\StoreAnalyticsEventRequest;
 use App\Models\Product;
 use App\Services\AnalyticsEventService;
+use App\Services\PublicAnalyticsSessionService;
 use App\Services\PublicTableAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -14,6 +15,7 @@ final class AnalyticsEventController extends Controller
     public function __invoke(
         StoreAnalyticsEventRequest $request,
         PublicTableAccessService $access,
+        PublicAnalyticsSessionService $sessions,
         AnalyticsEventService $events,
     ): JsonResponse {
         $data = $request->validated();
@@ -22,6 +24,17 @@ final class AnalyticsEventController extends Controller
         if ($tableAccess === null) {
             throw ValidationException::withMessages([
                 'qr_token' => 'QR meja tidak valid atau tidak lagi menerima pesanan.',
+            ]);
+        }
+
+        $sessionId = $sessions->sessionId(
+            (string) $data['analytics_token'],
+            (string) $data['qr_token'],
+        );
+
+        if ($sessionId === null) {
+            throw ValidationException::withMessages([
+                'analytics_token' => 'Sesi analytics tidak valid atau sudah berakhir.',
             ]);
         }
 
@@ -40,7 +53,7 @@ final class AnalyticsEventController extends Controller
         $events->recordPublic(
             (string) $data['event'],
             $tableAccess,
-            (string) $data['session_id'],
+            $sessionId,
             $productId,
             null,
             ['source' => 'customer_web'],
