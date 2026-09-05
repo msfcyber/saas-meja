@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\Tenant;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Throwable;
 
 final class PaymentCheckoutService
@@ -11,6 +13,7 @@ final class PaymentCheckoutService
     public function __construct(
         private readonly PaymentGatewayManager $gateways,
         private readonly TelemetryService $telemetry,
+        private readonly SubscriptionEntitlementService $entitlements,
     ) {}
 
     /**
@@ -18,6 +21,13 @@ final class PaymentCheckoutService
      */
     public function start(Payment $payment, Order $order, string $finishUrl): array
     {
+        $tenant = Tenant::query()->find($order->tenant_id);
+
+        if ($tenant === null
+            || ! $this->entitlements->hasFeature($tenant, SubscriptionEntitlementService::FEATURE_ONLINE_PAYMENT)) {
+            throw new ConflictHttpException('Pembayaran online belum tersedia pada plan outlet ini.');
+        }
+
         $provider = (string) $payment->provider;
         $startedAt = hrtime(true);
 

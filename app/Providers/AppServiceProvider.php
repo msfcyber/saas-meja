@@ -51,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
     {
         RateLimiter::for('qr-public', fn (Request $request) => Limit::perMinute(60)->by($request->ip()));
         RateLimiter::for('public-orders', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
+        RateLimiter::for('payment-webhooks', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
     }
 
     /**

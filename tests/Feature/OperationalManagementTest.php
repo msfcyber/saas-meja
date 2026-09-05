@@ -171,12 +171,19 @@ test('product image uploads are optimized and stored inside the active tenant ou
 
     expect($product->image_path)->not->toBeNull()
         ->and(str_starts_with($product->image_path, $directory))->toBeTrue()
-        ->and(str_ends_with($product->image_path, '.webp'))->toBeTrue();
+        ->and(str_ends_with($product->image_path, '-1600.webp'))->toBeTrue();
     Storage::disk('public')->assertExists($product->image_path);
+    Storage::disk('public')->assertExists(str_replace('-1600.webp', '-640.webp', $product->image_path));
+    Storage::disk('public')->assertExists(str_replace('-1600.webp', '-1024.webp', $product->image_path));
 
     $this->actingAs($workspace['user'])->withSession($session)->get(route('products'))
         ->assertInertia(fn (Assert $page) => $page
             ->where('products.0.image_url', Storage::disk('public')->url($product->image_path))
+            ->where('products.0.image_srcset', implode(', ', [
+                Storage::disk('public')->url(str_replace('-1600.webp', '-640.webp', $product->image_path)).' 640w',
+                Storage::disk('public')->url(str_replace('-1600.webp', '-1024.webp', $product->image_path)).' 1024w',
+                Storage::disk('public')->url($product->image_path).' 1600w',
+            ]))
             ->missing('products.0.image_path'),
         );
 });

@@ -19,6 +19,12 @@ final class SubscriptionEntitlementService
 
     public const LIMIT_STAFF = 'staff';
 
+    public const FEATURE_MENU = 'menu';
+
+    public const FEATURE_QR_ORDERING = 'qr_ordering';
+
+    public const FEATURE_ONLINE_PAYMENT = 'online_payment';
+
     /** @return list<string> */
     private function limitKeys(): array
     {
@@ -57,6 +63,11 @@ final class SubscriptionEntitlementService
 
         return $subscription->current_period_ends_at === null
             || $subscription->current_period_ends_at->greaterThan($now);
+    }
+
+    public function hasFeature(Tenant|int $tenant, string $feature): bool
+    {
+        return $this->current($tenant)?->plan?->hasFeature($feature) ?? false;
     }
 
     /** @return array{outlets: int, active_tables: int, staff: int} */

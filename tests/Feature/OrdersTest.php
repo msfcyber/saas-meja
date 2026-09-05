@@ -206,6 +206,10 @@ test('staff can advance an order and the status change is recorded with the acto
     expect($order->fresh()->status)->toBe(OrderStatus::Accepted)
         ->and($history->actor_type)->toBe('user')
         ->and($history->actor_id)->toBe($workspace['user']->id);
+    $this->assertDatabaseHas('audit_logs', [
+        'event' => 'order.status_changed',
+        'auditable_id' => $order->id,
+    ]);
 });
 
 test('staff order status changes dispatch the realtime event', function () {
@@ -238,6 +242,11 @@ test('staff cannot bypass the order state machine', function () {
         ->assertConflict();
 
     expect($order->fresh()->status)->toBe(OrderStatus::Paid);
+});
+
+test('paid orders cannot be cancelled or rejected after payment verification', function () {
+    expect(OrderStatus::Paid->canTransitionTo(OrderStatus::Cancelled))->toBeFalse()
+        ->and(OrderStatus::Accepted->canTransitionTo(OrderStatus::Rejected))->toBeFalse();
 });
 
 test('only a verified payment can move an awaiting order into paid', function () {

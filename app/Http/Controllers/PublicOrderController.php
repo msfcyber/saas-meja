@@ -22,18 +22,17 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
-use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class PublicOrderController extends Controller
 {
-    public function checkout(Request $request, string $qrToken, PublicTableAccessService $accessService, PublicAnalyticsSessionService $analyticsSessions): Response
+    public function checkout(Request $request, string $qrToken, PublicTableAccessService $accessService, PublicAnalyticsSessionService $analyticsSessions): HttpResponse
     {
         $access = $accessService->resolve($qrToken);
 
         if ($access === null) {
-            return Inertia::render('customer/menu', [
+            return $this->noStoreResponse(Inertia::render('customer/menu', [
                 'access' => [
                     'valid' => false,
                     'message' => 'QR meja tidak valid atau outlet belum menerima pesanan.',
@@ -42,7 +41,7 @@ class PublicOrderController extends Controller
                 'table' => null,
                 'categories' => [],
                 'products' => [],
-            ]);
+            ])->toResponse($request));
         }
 
         $taxSetting = TaxSetting::withoutGlobalScopes()
@@ -50,7 +49,7 @@ class PublicOrderController extends Controller
             ->where('outlet_id', $access->outlet->getKey())
             ->first();
 
-        return Inertia::render('customer/checkout', [
+        return $this->noStoreResponse(Inertia::render('customer/checkout', [
             'access' => ['valid' => true, 'message' => null],
             'qr_token' => $qrToken,
             'analytics_token' => $analyticsSessions->issue($access)['token'],
@@ -68,7 +67,7 @@ class PublicOrderController extends Controller
                 'rate_basis_points' => $taxSetting === null ? 0 : $taxSetting->rate_basis_points,
                 'inclusive' => $taxSetting?->is_inclusive === true,
             ],
-        ]);
+        ])->toResponse($request));
     }
 
     public function store(
@@ -216,6 +215,8 @@ class PublicOrderController extends Controller
                 $order,
                 route('public.order', ['accessToken' => $accessToken]),
             );
+        } catch (ConflictHttpException $exception) {
+            return $this->noStore(response()->json(['message' => $exception->getMessage()], 409));
         } catch (PaymentGatewayException $exception) {
             return $this->noStore(response()->json(['message' => $exception->getMessage()], 503));
         }
@@ -242,7 +243,8 @@ class PublicOrderController extends Controller
     {
         return $response
             ->header('Cache-Control', 'no-store, private')
-            ->header('Pragma', 'no-cache');
+            ->header('Pragma', 'no-cache')
+            ->header('Referrer-Policy', 'no-referrer');
     }
 
     private function noStoreResponse(HttpResponse $response): HttpResponse

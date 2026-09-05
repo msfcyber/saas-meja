@@ -13,6 +13,8 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\PaymentRefundService;
+use App\Services\PaymentWebhookService;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Spatie\Permission\PermissionRegistrar;
@@ -176,6 +178,92 @@ test('a different idempotency key cannot start a second refund while one is pend
 
     expect(PaymentRefund::withoutGlobalScopes()->count())->toBe(1);
     Http::assertNothingSent();
+});
+
+test('staff can issue partial refunds up to the remaining paid amount', function () {
+    $workspace = createPaymentRefundWorkspace();
+    Http::fake([
+        'https://api.sandbox.midtrans.com/v2/*/refund' => Http::response([
+            'status_code' => '200',
+            'refund_chargeback_id' => 'partial-refund',
+        ]),
+    ]);
+
+    $this->actingAs($workspace['user'])
+        ->withSession(paymentRefundSession($workspace))
+        ->withHeaders(['Idempotency-Key' => 'partial-refund-1'])
+        ->post(route('orders.refund', $workspace['order']), [
+            'reason' => 'Satu menu tidak tersedia',
+            'amount' => 10000,
+        ])
+        ->assertRedirect(route('orders'));
+
+    expect($workspace['payment']->fresh()->status)->toBe(PaymentStatus::PartiallyRefunded)
+        ->and($workspace['order']->fresh()->status)->toBe(OrderStatus::Paid);
+
+    $this->actingAs($workspace['user'])
+        ->withSession(paymentRefundSession($workspace))
+        ->withHeaders(['Idempotency-Key' => 'partial-refund-2'])
+        ->post(route('orders.refund', $workspace['order']), [
+            'reason' => 'Sisa order dibatalkan',
+            'amount' => 18000,
+        ])
+        ->assertRedirect(route('orders'));
+
+    expect($workspace['payment']->fresh()->status)->toBe(PaymentStatus::Refunded)
+        ->and($workspace['order']->fresh()->status)->toBe(OrderStatus::Refunded)
+        ->and(PaymentRefund::withoutGlobalScopes()->where('status', PaymentRefundStatus::Succeeded)->sum('amount'))->toBe(28000);
+});
+
+test('refund reconciliation keeps unknown provider refunds pending with their original keys', function () {
+    $workspace = createPaymentRefundWorkspace();
+    $refund = PaymentRefund::withoutGlobalScopes()->create([
+        'tenant_id' => $workspace['tenant']->id,
+        'outlet_id' => $workspace['outlet']->id,
+        'payment_id' => $workspace['payment']->id,
+        'idempotency_key' => 'pending-reconciliation',
+        'provider' => 'midtrans',
+        'provider_refund_key' => 'provider-refund-key',
+        'status' => PaymentRefundStatus::Pending,
+        'amount' => 28000,
+        'currency' => 'IDR',
+        'reason' => 'Menunggu konfirmasi gateway',
+        'requested_by' => $workspace['user']->id,
+        'requested_at' => now(),
+    ]);
+    Http::fake([
+        'https://api.sandbox.midtrans.com/v2/*/status' => Http::response([
+            'order_id' => $workspace['payment']->provider_reference,
+            'transaction_id' => 'transaction-pending',
+            'transaction_status' => 'settlement',
+            'status_code' => '200',
+            'gross_amount' => '28000.00',
+            'transaction_time' => now()->toDateTimeString(),
+            'refunds' => [],
+        ]),
+    ]);
+
+    expect(app(PaymentRefundService::class)->reconcilePending())->toBe(0)
+        ->and($refund->fresh()->status)->toBe(PaymentRefundStatus::Pending)
+        ->and($refund->fresh()->provider_refund_key)->toBe('provider-refund-key');
+});
+
+test('a full refund webhook aligns an order that was already accepted', function () {
+    $workspace = createPaymentRefundWorkspace();
+    $workspace['order']->update(['status' => OrderStatus::Accepted]);
+
+    app(PaymentWebhookService::class)->handle('midtrans', [
+        'event_id' => 'refund-webhook-accepted-order',
+        'event_type' => 'payment.refunded',
+        'provider_reference' => $workspace['payment']->provider_reference,
+        'amount' => $workspace['payment']->amount,
+        'currency' => 'IDR',
+        'occurred_at' => now()->toIso8601String(),
+        'metadata' => ['refund_amount' => $workspace['payment']->amount],
+    ]);
+
+    expect($workspace['payment']->fresh()->status)->toBe(PaymentStatus::Refunded)
+        ->and($workspace['order']->fresh()->status)->toBe(OrderStatus::Refunded);
 });
 
 test('refund route requires the payment refund permission and active outlet context', function () {

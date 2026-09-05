@@ -28,6 +28,7 @@ export type CustomerMenuProduct = {
     description: string | null;
     price: number;
     image: string | null;
+    image_srcset?: string | null;
     popular?: boolean;
     spicy?: boolean;
     is_available?: boolean;

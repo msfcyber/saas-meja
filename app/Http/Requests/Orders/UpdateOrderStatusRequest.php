@@ -26,8 +26,6 @@ class UpdateOrderStatusRequest extends FormRequest
                     OrderStatus::Ready->value,
                     OrderStatus::Served->value,
                     OrderStatus::Completed->value,
-                    OrderStatus::Rejected->value,
-                    OrderStatus::Cancelled->value,
                 ]),
             ],
             'note' => ['sometimes', 'nullable', 'string', 'max:500'],

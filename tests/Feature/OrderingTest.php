@@ -21,6 +21,7 @@ use App\Services\PublicOrderService;
 use App\Services\PublicTableAccessService;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -155,6 +156,36 @@ test('guest checkout validates the QR context and snapshots the final server pri
             OrderStatus::Draft->value,
             OrderStatus::AwaitingPayment->value,
         ]);
+});
+
+test('plan features block QR ordering and online payment independently', function () {
+    $workspace = createOrderingWorkspace(withGatewayCredential: true);
+    $subscription = Subscription::withoutGlobalScopes()
+        ->with('plan')
+        ->where('tenant_id', $workspace['tenant']->id)
+        ->firstOrFail();
+    $subscription->plan->update(['features' => ['menu']]);
+
+    $this->get(route('public.qr', ['qrToken' => $workspace['token']]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('access.valid', false));
+
+    $subscription->plan->update(['features' => ['menu', 'qr_ordering']]);
+    $response = $this->postJson(route('public.orders.store'), orderingPayload($workspace, 'feature-gated-payment'))
+        ->assertCreated();
+
+    $this->postJson(route('public.orders.payment.start', ['accessToken' => $response->json('access_token')]), [
+        'payment_method' => 'qris',
+    ])
+        ->assertConflict()
+        ->assertJsonPath('message', 'Pembayaran online belum tersedia pada plan outlet ini.');
+});
+
+test('both payment webhook endpoints are rate limited', function () {
+    expect(Route::getRoutes()->getByName('payments.webhook')->gatherMiddleware())
+        ->toContain('throttle:payment-webhooks')
+        ->and(Route::getRoutes()->getByName('payments.midtrans.webhook')->gatherMiddleware())
+        ->toContain('throttle:payment-webhooks');
 });
 
 test('guest cart preview returns a server fingerprint and stale quotes cannot create an order', function () {

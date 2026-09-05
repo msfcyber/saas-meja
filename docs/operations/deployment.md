@@ -15,8 +15,9 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-For a production object-storage deployment, set these values in the secret
-environment:
+Production Compose requires S3-compatible public storage. Set these values in
+the secret environment; local public storage is intentionally rejected by the
+production service definition:
 
 ```dotenv
 FILESYSTEM_PUBLIC_DRIVER=s3
@@ -44,21 +45,33 @@ docker compose run --rm app php artisan migrate --force
 docker compose up -d app reverb worker scheduler
 ```
 
-The web container serves port `8080` internally. Set `APP_PORT` to expose it on
-the host or put an external TLS-terminating load balancer in front of it.
-The Reverb container serves WebSocket traffic on port `8080` and maps to
-`REVERB_EXTERNAL_PORT` on the host. Put the public WebSocket hostname behind the
-TLS-terminating proxy and set the public Reverb values before building the image;
-Compose forwards them as Vite build arguments:
+Compose exposes only TLS on `${HTTPS_PORT:-443}`. Before startup, mount a
+certificate and private key as `${TLS_CERTS_PATH}/tls.crt` and
+`${TLS_CERTS_PATH}/tls.key`; do not expose the app or Reverb service ports
+directly. Nginx terminates TLS and proxies the Reverb Pusher/WebSocket paths on
+the same public hostname. Redirect port 80 to HTTPS at the cloud load balancer
+or network edge.
+
+Set the public Reverb values before building the image; Compose forwards them
+as Vite build arguments:
 
 ```dotenv
-REVERB_HOST=ws.example.com
+REVERB_HOST=app.example.com
 REVERB_EXTERNAL_PORT=443
 REVERB_SCHEME=https
 ```
 
 The service container overrides `REVERB_HOST` with its internal Docker hostname,
 while the compiled frontend keeps the public hostname and port.
+
+## Alerts
+
+The application emits structured warning/error telemetry to its configured log
+channel. Route container stderr to the operations alerting system and create
+alerts for `queue.busy`, failed jobs, stale payment events, pending refunds,
+and webhook verification failures. Set and document `OPS_ALERT_WEBHOOK_URL` in
+the deployment secret manager when an alert relay is available; it is an
+operator endpoint and must never be committed.
 
 The frontend build runs Wayfinder generation in a PHP build stage before Vite,
 so a clean CI checkout does not depend on ignored generated route files.

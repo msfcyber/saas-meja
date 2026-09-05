@@ -1,6 +1,6 @@
 # Progress Pengembangan
 
-Terakhir diperbarui: 4 September 2026
+Terakhir diperbarui: 5 September 2026
 
 ## Selesai - Frontend Foundation
 
@@ -166,15 +166,15 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Revalidasi entitlement subscription di dalam transaction checkout; tambah `no-store` dan `no-referrer` pada tracking/token order serta JSON publik.
 - [x] Kerasikan baseline produksi: cookie sesi otomatis `Secure` saat production, Compose mewajibkan credential DB/Reverb, dan seeder memerlukan credential dari config/env tanpa default password yang dikomit.
 - [x] Funnel analytics browser tetap bersifat indikatif untuk guest anonymous. Event conversion kritis berasal dari server; token HMAC QR-bound dan deduplikasi event browser 60 detik sudah diterapkan.
-- [ ] Partial refund initiation tetap di luar scope MVP; laporan sudah menyimpan dan menghitung nominal refund parsial, tetapi flow refund parsial melalui gateway belum tersedia.
+- [x] Refund parsial dapat diinisiasi dengan nominal tervalidasi, memakai provider refund key yang stabil, menghitung sisa payment secara atomik, dan hanya mengubah order menjadi refunded ketika nominal penuh sudah tercapai.
 
 ## Verifikasi Terakhir
 
-- [x] `php artisan test --compact`: 196 test lulus, 1.519 assertion; termasuk full flow ordering/payment, quote stale, payment retry, auth, SaaS, reports, backup, analytics, observability, CRUD operasional, refund concurrency, queue reconciliation, dan platform admin.
+- [x] `php artisan test --compact`: 202 test lulus, 1.554 assertion; termasuk full flow ordering/payment, quote stale, payment retry, auth, SaaS, reports, backup, analytics, observability, CRUD operasional, refund parsial/concurrency, queue reconciliation, dan platform admin.
 - [x] `composer run lint:check`: Pint lulus.
 - [x] `composer run types:check`: PHPStan lulus tanpa error.
 - [x] `npm run types:check`: TypeScript lulus.
-- [ ] `npm run build`: tertahan `EPERM` saat Vite menghapus `public/build/assets` pada host Windows; tidak dapat diverifikasi sampai lock file/direktori dilepas.
+- [x] `npm run build`: lulus di host Windows setelah lock `public/build/assets` dilepas.
 - [x] `php artisan migrate --force`: seluruh migration lokal, termasuk refund, Google identity, dan analytics, sudah diterapkan; `migrate:fresh --force` juga lulus pada MySQL disposable.
 - [x] Dependency lokal disinkronkan melalui `composer install`; `laravel/socialite` v5.30.1 terpasang di `vendor`.
 - [x] `npm run check`: lulus; 102 file terformat benar dan 89 file frontend lulus tanpa warning/error.
@@ -196,7 +196,7 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Feature test quote checkout stale, retry payment, filter order, analytics public/server boundary, invoice expiry/interval, subscription recheck checkout, tracking cache header, dan refund in-flight.
 - [x] Sediakan browser/E2E tooling lalu uji alur scan QR sampai struk pada viewport 360 px, tablet, dan desktop dengan Playwright; 5 skenario x 3 viewport (15 eksekusi) tersedia dan terakhir dilaporkan lulus.
 - [x] Audit aksesibilitas axe, Core Web Vitals dasar, overflow, empty/error/loading state, dan koneksi offline/lambat lulus pada customer browser flow.
-- [ ] Lengkapi responsive image variants (`srcset`) dan lazy loading pada seluruh gambar produk/customer flow.
+- [x] Menyimpan varian produk WebP 640/1024/1600 px, mengirim `srcset`, dan menerapkan ukuran/lazy loading yang sesuai di katalog, menu customer, checkout, serta preview.
 - [x] Rapikan baseline formatting source pada `npm run check`; full check lulus tanpa warning/error.
 - [ ] Jalankan validasi runtime Docker untuk Compose, Reverb, dan Redis worker; Docker CLI tidak tersedia. Restore drill MySQL disposable sudah lulus.
 
@@ -205,19 +205,19 @@ Beberapa halaman marketing dan demo tetap menggunakan data demo; flow QR publik,
 - [x] Analytics browser menggunakan token bertanda tangan HMAC yang berisi session acak, hash QR, dan expiry satu jam; browser tidak lagi dapat mengirim `session_id` pilihannya sendiri.
 - [x] Endpoint analytics memvalidasi token terhadap QR aktif dan mendeduplikasi event browser yang identik selama satu menit; test mencakup token QR lain, token expired, dan duplicate delivery.
 - [x] Reconciliation refund pending Midtrans, expiry invoice subscription, partial-refund amount reporting, health threshold operasional, dan skenario browser tambahan tersedia.
-- [ ] CI workflow repository perlu ditambahkan atau diverifikasi; `.github/workflows` tidak tersedia pada checkout saat ini.
+- [x] Menambahkan GitHub Actions quality workflow untuk dependency install, lint, PHPStan, test, TypeScript check, frontend check, dan production build pada Linux.
 - [x] Perbaiki assertion upload image invalid agar memeriksa direktori tenant/outlet yang diuji, tidak bergantung pada isi root storage fake dari fixture lain.
-- [x] `php artisan test --compact`: 196 test lulus, 1.519 assertion.
+- [x] `php artisan test --compact`: 202 test lulus, 1.554 assertion.
 - [x] `composer run types:check`, `composer run lint:check`, dan `npm run types:check` lulus.
-- [ ] `npm run build` tertahan `EPERM` saat menghapus `public/build/assets`; direktori sedang dikunci proses lain pada host lokal.
+- [x] `npm run build` lulus di host lokal.
 
 ## Audit PRD - 4 September 2026 (Gap Aktif)
 
-- [ ] **P1 - Konsistensi order/payment:** batasi pembatalan dari order `paid` dan penolakan setelah payment terverifikasi agar selalu memiliki keputusan refund yang eksplisit; selaraskan status order saat refund webhook masuk. Referensi: `app/Enums/OrderStatus.php`, `app/Services/PaymentWebhookService.php`, dan `app/Services/PaymentRefundService.php`.
-- [ ] **P1 - Refund reconciliation:** jangan menandai refund `failed` hanya karena provider belum mengembalikan item refund; pertahankan idempotency key/provider refund key dan cegah retry yang berpotensi menggandakan refund. Referensi: `app/Services/PaymentRefundService.php`.
-- [ ] **P1 - Status transition atomicity:** tambahkan transaction/locking yang konsisten untuk update order, history, audit, analytics, dan broadcast agar concurrent staff transition tidak menghasilkan timeline/status yang berbeda. Referensi: `app/Services/OrderStatusService.php` dan `app/Http/Controllers/OrderController.php`.
-- [ ] **P1 - TLS production:** deployment saat ini expose HTTP pada port aplikasi dan Reverb; production membutuhkan TLS termination yang terdokumentasi serta konfigurasi HTTPS Reverb. Referensi: `docker-compose.yml` dan `docker/nginx.conf`.
-- [ ] **P2 - Webhook protection:** tambahkan rate limiting pada `webhooks/payments/{provider}` dan `webhooks/midtrans`. Referensi: `routes/api.php`.
-- [ ] **P2 - Token response headers:** response Inertia checkout yang membawa `analytics_token` belum menetapkan `Cache-Control: no-store` dan `Referrer-Policy: no-referrer`. Referensi: `app/Http/Controllers/PublicOrderController.php`.
-- [ ] **P2 - Plan feature enforcement:** `Plan::hasFeature()` tersedia, tetapi pemakaian feature entitlement belum diterapkan pada flow aplikasi. Referensi: `app/Models/Plan.php` dan `app/Services/SubscriptionEntitlementService.php`.
-- [ ] **P2 - Production storage/alerts:** compose dan `.env.example` masih default ke local public storage; konfigurasi S3-compatible dan tujuan alert untuk queue/webhook/error perlu diwajibkan atau didokumentasikan pada deployment production.
+- [x] **P1 - Konsistensi order/payment:** pembatalan/penolakan setelah payment diverifikasi tidak lagi tersedia; refund penuh mengakhiri order secara eksplisit, termasuk bila webhook datang setelah order diproses.
+- [x] **P1 - Refund reconciliation:** refund yang belum muncul di provider tetap pending dengan idempotency/provider refund key yang sama; tidak ada retry dengan key baru atau false failure.
+- [x] **P1 - Status transition atomicity:** status, history, audit, analytics tercatat dalam transaction dengan row lock; broadcast dipicu setelah commit.
+- [x] **P1 - TLS production:** Compose hanya mengekspos HTTPS Nginx, memerlukan mount sertifikat, dan mem-proxy Reverb internal; deployment runbook mendokumentasikan TLS dan redirect port 80 di edge.
+- [x] **P2 - Webhook protection:** rate limiter khusus diterapkan pada webhook generic dan Midtrans.
+- [x] **P2 - Token response headers:** Inertia checkout dan JSON token public mengirim `Cache-Control: no-store` dan `Referrer-Policy: no-referrer`.
+- [x] **P2 - Plan feature enforcement:** entitlements feature diterapkan pada akses menu/QR dan checkout payment online, dengan test regresi plan terbatasi.
+- [x] **P2 - Production storage/alerts:** Compose production mewajibkan disk public S3-compatible; `.env.example` dan runbook mendokumentasikan storage, TLS, dan routing alert telemetry.

@@ -465,7 +465,7 @@ export default function Orders({
     function refundOrder(order: StaffOrder) {
         const reason = window
             .prompt(
-                `Alasan refund penuh untuk order ${order.number}`,
+                `Alasan refund untuk order ${order.number}`,
                 'Permintaan refund manual',
             )
             ?.trim();
@@ -474,10 +474,32 @@ export default function Orders({
             return;
         }
 
+        const amountInput = window.prompt(
+            `Nominal refund (maksimal ${formatMoney(order.grand_total, order.currency)})`,
+            String(order.grand_total),
+        );
+
+        if (amountInput === null) {
+            return;
+        }
+
+        const amount = Number.parseInt(amountInput, 10);
+
+        if (
+            !Number.isSafeInteger(amount) ||
+            amount < 1 ||
+            amount > order.grand_total
+        ) {
+            toast.error('Nominal refund tidak valid', {
+                description: 'Masukkan nominal antara Rp1 dan total order.',
+            });
+            return;
+        }
+
         setPendingRefundOrderId(order.id);
         router.post(
             `/orders/${order.id}/refund`,
-            { reason },
+            { reason, amount },
             {
                 headers: { 'Idempotency-Key': crypto.randomUUID() },
                 preserveScroll: true,
@@ -976,7 +998,7 @@ export default function Orders({
                                                         {pendingRefundOrderId ===
                                                         order.id
                                                             ? 'Mengirim refund...'
-                                                            : 'Refund penuh'}
+                                                            : 'Refund'}
                                                     </button>
                                                 )}
                                             <button

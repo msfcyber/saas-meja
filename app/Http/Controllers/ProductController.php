@@ -10,6 +10,7 @@ use App\Models\ModifierOption;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Support\ProductImage;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -62,6 +63,7 @@ class ProductController extends Controller
                 'category' => $product->category?->only(['id', 'name']),
                 'description' => $product->description,
                 'image_url' => $product->image_path === null ? null : Storage::disk('public')->url($product->image_path),
+                'image_srcset' => $product->image_path === null ? null : ProductImage::srcSet($product->image_path),
                 'base_price' => $product->base_price,
                 'is_active' => $product->is_active,
                 'is_available' => $product->is_available,
@@ -124,7 +126,7 @@ class ProductController extends Controller
             }, attempts: 3);
         } catch (Throwable $exception) {
             if ($imagePath !== null) {
-                Storage::disk('public')->delete($imagePath);
+                Storage::disk('public')->delete(ProductImage::paths($imagePath));
             }
 
             throw $exception;
@@ -160,7 +162,7 @@ class ProductController extends Controller
             }, attempts: 3);
         } catch (Throwable $exception) {
             if ($newImagePath !== null) {
-                Storage::disk('public')->delete($newImagePath);
+                Storage::disk('public')->delete(ProductImage::paths($newImagePath));
             }
 
             throw $exception;
@@ -169,7 +171,7 @@ class ProductController extends Controller
         if (($newImagePath !== null || $request->boolean('remove_image'))
             && $oldImagePath !== null
             && $oldImagePath !== $newImagePath) {
-            Storage::disk('public')->delete($oldImagePath);
+            Storage::disk('public')->delete(ProductImage::paths($oldImagePath));
         }
 
         return to_route('products')->with('success', 'Produk berhasil diperbarui.');
@@ -193,7 +195,7 @@ class ProductController extends Controller
         $product->delete();
 
         if ($imagePath !== null) {
-            Storage::disk('public')->delete($imagePath);
+            Storage::disk('public')->delete(ProductImage::paths($imagePath));
         }
 
         return to_route('products')->with('success', 'Produk berhasil dihapus.');
@@ -223,20 +225,34 @@ class ProductController extends Controller
             return null;
         }
 
-        $path = $image
-            ->orient()
-            ->scale(1600, 1600)
-            ->optimize('webp', 80)
-            ->storePubliclyAs(
-                path: "tenants/{$context->tenantId()}/outlets/{$context->outletId()}/products",
-                name: Str::uuid().'.webp',
-                disk: 'public',
-            );
+        $directory = "tenants/{$context->tenantId()}/outlets/{$context->outletId()}/products";
+        $filename = Str::uuid();
+        $paths = [];
 
-        if ($path === false) {
-            throw new RuntimeException('Product image could not be stored.');
+        try {
+            foreach ([640, 1024, 1600] as $width) {
+                $path = $request->image('image')
+                    ?->orient()
+                    ->scale($width, $width)
+                    ->optimize('webp', 80)
+                    ->storePubliclyAs(
+                        path: $directory,
+                        name: "{$filename}-{$width}.webp",
+                        disk: 'public',
+                    );
+
+                if ($path === false || $path === null) {
+                    throw new RuntimeException('Product image could not be stored.');
+                }
+
+                $paths[] = $path;
+            }
+        } catch (Throwable $exception) {
+            Storage::disk('public')->delete($paths);
+
+            throw $exception;
         }
 
-        return $path;
+        return $paths[2];
     }
 }

@@ -37,7 +37,8 @@ final class PublicTableAccessService
             return null;
         }
 
-        if (! $this->entitlements->canAcceptOrders($tenant)) {
+        if (! $this->entitlements->canAcceptOrders($tenant)
+            || ! $this->entitlements->hasFeature($tenant, SubscriptionEntitlementService::FEATURE_QR_ORDERING)) {
             return null;
         }
 

@@ -178,7 +178,7 @@ final class PaymentWebhookService
             $this->statuses->transition($order, OrderStatus::PaymentExpired, 'payment_webhook');
         }
 
-        if ($target === PaymentStatus::Refunded && $order->status === OrderStatus::Paid) {
+        if ($target === PaymentStatus::Refunded && $order->status !== OrderStatus::Refunded) {
             $this->statuses->transition($order, OrderStatus::Refunded, 'payment_webhook');
         }
 

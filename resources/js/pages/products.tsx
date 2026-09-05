@@ -66,6 +66,7 @@ type Product = {
     category: Pick<Category, 'id' | 'name'> | null;
     description: string | null;
     image_url: string | null;
+    image_srcset: string | null;
     base_price: number;
     is_active: boolean;
     is_available: boolean;
@@ -705,6 +706,11 @@ export default function Products({
                                         {product.image_url ? (
                                             <img
                                                 src={product.image_url}
+                                                srcSet={
+                                                    product.image_srcset ??
+                                                    undefined
+                                                }
+                                                sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw"
                                                 alt=""
                                                 className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                                                 loading="lazy"
@@ -1914,6 +1920,12 @@ export default function Products({
                                 <div className="flex items-center gap-3">
                                     <img
                                         src={editingProduct.image_url}
+                                        srcSet={
+                                            editingProduct.image_srcset ??
+                                            undefined
+                                        }
+                                        sizes="56px"
+                                        loading="lazy"
                                         alt={`Foto saat ini: ${editingProduct.name}`}
                                         className="size-14 rounded-lg object-cover"
                                     />

@@ -24,6 +24,7 @@ class PaymentRefundController extends Controller
                 (string) $request->validated('idempotency_key'),
                 (string) $request->validated('reason'),
                 is_numeric($actorId) ? (int) $actorId : null,
+                $request->integer('amount') ?: null,
             );
         } catch (PaymentGatewayException $exception) {
             return back()->withErrors(['refund' => $exception->getMessage()]);

@@ -24,7 +24,7 @@ class PlanFactory extends Factory
                 'active_tables' => 100,
                 'staff' => 10,
             ],
-            'features' => ['menu', 'qr_ordering'],
+            'features' => ['menu', 'qr_ordering', 'order_board', 'online_payment', 'sales_report'],
             'is_active' => true,
             'position' => 0,
         ];

@@ -5,9 +5,9 @@ services:
             dockerfile: Dockerfile
             args:
                 VITE_REVERB_APP_KEY: ${REVERB_APP_KEY:?REVERB_APP_KEY is required}
-                VITE_REVERB_HOST: ${REVERB_HOST:-localhost}
-                VITE_REVERB_PORT: ${REVERB_EXTERNAL_PORT:-8081}
-                VITE_REVERB_SCHEME: ${REVERB_SCHEME:-http}
+                VITE_REVERB_HOST: ${REVERB_HOST:?REVERB_HOST is required}
+                VITE_REVERB_PORT: ${REVERB_EXTERNAL_PORT:-443}
+                VITE_REVERB_SCHEME: ${REVERB_SCHEME:-https}
         image: meja-app:local
         env_file:
             - .env
@@ -23,7 +23,7 @@ services:
             CACHE_STORE: redis
             QUEUE_CONNECTION: redis
             REDIS_HOST: redis
-            FILESYSTEM_PUBLIC_DRIVER: ${FILESYSTEM_PUBLIC_DRIVER:-local}
+            FILESYSTEM_PUBLIC_DRIVER: ${FILESYSTEM_PUBLIC_DRIVER:?FILESYSTEM_PUBLIC_DRIVER=s3 is required}
             REVERB_HOST: ${REVERB_INTERNAL_HOST:-reverb}
             REVERB_PORT: 8080
             REVERB_SCHEME: http
@@ -38,9 +38,10 @@ services:
             reverb:
                 condition: service_started
         ports:
-            - '${APP_PORT:-8080}:8080'
+            - '${HTTPS_PORT:-443}:8443'
         volumes:
             - app-public:/var/www/html/storage/app/public
+            - ${TLS_CERTS_PATH:?TLS_CERTS_PATH is required}:/etc/nginx/tls:ro
         restart: unless-stopped
 
     reverb:
@@ -73,8 +74,6 @@ services:
                 condition: service_healthy
             redis:
                 condition: service_healthy
-        ports:
-            - '${REVERB_EXTERNAL_PORT:-8081}:8080'
         restart: unless-stopped
 
     worker:

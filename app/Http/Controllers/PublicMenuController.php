@@ -15,6 +15,7 @@ use App\Models\Tenant;
 use App\Services\AnalyticsEventService;
 use App\Services\PublicAnalyticsSessionService;
 use App\Services\SubscriptionEntitlementService;
+use App\Support\ProductImage;
 use App\Support\PublicTableAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -54,6 +55,11 @@ class PublicMenuController extends Controller
 
         if (! $entitlements->canAcceptOrders($tenant)) {
             return $this->invalid($request, 'Menu sedang tidak tersedia karena subscription belum aktif.');
+        }
+
+        if (! $entitlements->hasFeature($tenant, SubscriptionEntitlementService::FEATURE_MENU)
+            || ! $entitlements->hasFeature($tenant, SubscriptionEntitlementService::FEATURE_QR_ORDERING)) {
+            return $this->invalid($request, 'Menu QR belum tersedia pada plan outlet ini.');
         }
 
         $outlet = Outlet::withoutGlobalScopes()
@@ -147,6 +153,7 @@ class PublicMenuController extends Controller
                 'description' => $product->description,
                 'price' => $product->base_price,
                 'image' => $product->image_path === null ? null : Storage::disk('public')->url($product->image_path),
+                'image_srcset' => $product->image_path === null ? null : ProductImage::srcSet($product->image_path),
                 'popular' => $product->is_featured,
                 'is_available' => $product->is_available,
                 'variants' => $product->variants->map(fn (ProductVariant $variant) => [

@@ -21,9 +21,9 @@ final class PaymentRefundService
         private readonly AuditLogService $audits,
     ) {}
 
-    public function refund(Order $order, string $idempotencyKey, string $reason, ?int $actorId): PaymentRefund
+    public function refund(Order $order, string $idempotencyKey, string $reason, ?int $actorId, ?int $amount = null): PaymentRefund
     {
-        $refund = DB::transaction(function () use ($order, $idempotencyKey, $reason, $actorId): PaymentRefund {
+        $refund = DB::transaction(function () use ($order, $idempotencyKey, $reason, $actorId, $amount): PaymentRefund {
             $existing = PaymentRefund::withoutGlobalScopes()
                 ->where('tenant_id', $order->tenant_id)
                 ->where('outlet_id', $order->outlet_id)
@@ -42,15 +42,11 @@ final class PaymentRefundService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if ($lockedOrder->status !== OrderStatus::Paid) {
-                throw new ConflictHttpException('Hanya order berstatus paid yang dapat direfund.');
-            }
-
             $payment = Payment::withoutGlobalScopes()
                 ->where('tenant_id', $lockedOrder->tenant_id)
                 ->where('outlet_id', $lockedOrder->outlet_id)
                 ->where('order_id', $lockedOrder->getKey())
-                ->where('status', PaymentStatus::Paid)
+                ->whereIn('status', [PaymentStatus::Paid, PaymentStatus::PartiallyRefunded])
                 ->latest('id')
                 ->lockForUpdate()
                 ->first();
@@ -61,7 +57,7 @@ final class PaymentRefundService
 
             $activeRefund = PaymentRefund::withoutGlobalScopes()
                 ->where('payment_id', $payment->getKey())
-                ->whereIn('status', [PaymentRefundStatus::Pending, PaymentRefundStatus::Succeeded])
+                ->where('status', PaymentRefundStatus::Pending)
                 ->lockForUpdate()
                 ->first();
 
@@ -73,6 +69,22 @@ final class PaymentRefundService
                 throw new ConflictHttpException('Refund untuk payment ini sedang atau sudah diproses.');
             }
 
+            $refundedAmount = (int) PaymentRefund::withoutGlobalScopes()
+                ->where('payment_id', $payment->getKey())
+                ->where('status', PaymentRefundStatus::Succeeded)
+                ->sum('amount');
+            $remainingAmount = (int) $payment->amount - $refundedAmount;
+
+            if ($remainingAmount < 1) {
+                throw new ConflictHttpException('Payment ini sudah direfund penuh.');
+            }
+
+            $refundAmount = $amount ?? $remainingAmount;
+
+            if ($refundAmount < 1 || $refundAmount > $remainingAmount) {
+                throw new ConflictHttpException('Nominal refund melebihi sisa payment.');
+            }
+
             return PaymentRefund::withoutGlobalScopes()->create([
                 'tenant_id' => $lockedOrder->tenant_id,
                 'outlet_id' => $lockedOrder->outlet_id,
@@ -81,7 +93,7 @@ final class PaymentRefundService
                 'provider' => (string) $payment->provider,
                 'provider_refund_key' => 'meja-refund-'.$payment->getKey().'-'.Str::uuid(),
                 'status' => PaymentRefundStatus::Pending,
-                'amount' => (int) $payment->amount,
+                'amount' => $refundAmount,
                 'currency' => (string) $payment->currency,
                 'reason' => $reason,
                 'requested_by' => $actorId,
@@ -173,8 +185,6 @@ final class PaymentRefundService
             }
 
             if (! is_array($providerRefund)) {
-                $this->markFailed($refund, 'Gateway belum mengakui refund ini; refund dapat dicoba kembali.');
-
                 continue;
             }
 
@@ -213,26 +223,41 @@ final class PaymentRefundService
                 return $lockedRefund;
             }
 
-            if ($lockedPayment->status !== PaymentStatus::Paid || $lockedOrder->status !== OrderStatus::Paid) {
+            if (! in_array($lockedPayment->status, [PaymentStatus::Paid, PaymentStatus::PartiallyRefunded], true)) {
                 throw new ConflictHttpException('Payment atau order berubah sebelum refund selesai diproses.');
             }
 
-            $this->statuses->transition(
-                $lockedOrder,
-                OrderStatus::Refunded,
-                'user',
-                $lockedRefund->requested_by,
-                'Refund manual: '.$lockedRefund->reason,
-            );
+            $previousRefundedAmount = (int) PaymentRefund::withoutGlobalScopes()
+                ->where('payment_id', $lockedPayment->getKey())
+                ->where('status', PaymentRefundStatus::Succeeded)
+                ->whereKeyNot($lockedRefund->getKey())
+                ->sum('amount');
+            $refundedAmount = $previousRefundedAmount + (int) $lockedRefund->amount;
+
+            if ($refundedAmount > (int) $lockedPayment->amount) {
+                throw new ConflictHttpException('Nominal refund melebihi payment.');
+            }
+
+            $isFullRefund = $refundedAmount === (int) $lockedPayment->amount;
+
+            if ($isFullRefund && $lockedOrder->status !== OrderStatus::Refunded) {
+                $this->statuses->transition(
+                    $lockedOrder,
+                    OrderStatus::Refunded,
+                    'user',
+                    $lockedRefund->requested_by,
+                    'Refund manual: '.$lockedRefund->reason,
+                );
+            }
             $metadata = is_array($lockedPayment->metadata) ? $lockedPayment->metadata : [];
             $metadata['refund'] = [
                 'id' => (int) $lockedRefund->getKey(),
-                'amount' => (int) $lockedRefund->amount,
+                'amount' => $refundedAmount,
                 'provider_reference' => $result['provider_reference'],
                 'completed_at' => now()->toIso8601String(),
             ];
             $lockedPayment->update([
-                'status' => PaymentStatus::Refunded,
+                'status' => $isFullRefund ? PaymentStatus::Refunded : PaymentStatus::PartiallyRefunded,
                 'metadata' => $metadata,
             ]);
             $lockedRefund->update([
@@ -254,36 +279,15 @@ final class PaymentRefundService
                     'order_status' => OrderStatus::Paid->value,
                 ],
                 'new_values' => [
-                    'payment_status' => PaymentStatus::Refunded->value,
-                    'order_status' => OrderStatus::Refunded->value,
+                    'payment_status' => ($isFullRefund ? PaymentStatus::Refunded : PaymentStatus::PartiallyRefunded)->value,
+                    'order_status' => $lockedOrder->status->value,
                     'amount' => (int) $lockedRefund->amount,
+                    'refunded_amount' => $refundedAmount,
                     'provider' => $lockedRefund->provider,
                 ],
             ]);
 
             return $lockedRefund;
         }, attempts: 3);
-    }
-
-    private function markFailed(PaymentRefund $refund, string $message): void
-    {
-        PaymentRefund::withoutGlobalScopes()
-            ->whereKey($refund->getKey())
-            ->update([
-                'status' => PaymentRefundStatus::Failed,
-                'failure_reason' => $message,
-            ]);
-        $this->audits->record('payment.refund_failed', [
-            'tenant_id' => (int) $refund->tenant_id,
-            'outlet_id' => (int) $refund->outlet_id,
-            'actor_type' => 'user',
-            'actor_id' => $refund->requested_by,
-            'auditable_type' => PaymentRefund::class,
-            'auditable_id' => (int) $refund->getKey(),
-            'new_values' => [
-                'status' => PaymentRefundStatus::Failed->value,
-                'reason' => $message,
-            ],
-        ]);
     }
 }

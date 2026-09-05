@@ -469,8 +469,15 @@ export default function Checkout({
                                             {item.product.image ? (
                                                 <img
                                                     src={item.product.image}
+                                                    srcSet={
+                                                        item.product
+                                                            .image_srcset ??
+                                                        undefined
+                                                    }
+                                                    sizes="96px"
                                                     alt=""
                                                     className="size-full object-cover"
+                                                    loading="lazy"
                                                 />
                                             ) : (
                                                 <div className="text-primary flex size-full items-center justify-center">

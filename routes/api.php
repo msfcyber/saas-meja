@@ -10,10 +10,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('webhooks/payments/{provider}', PaymentWebhookController::class)
     ->where('provider', '[a-z0-9_-]+')
-    ->middleware(VerifyPaymentWebhookSignature::class)
+    ->middleware([VerifyPaymentWebhookSignature::class, 'throttle:payment-webhooks'])
     ->name('payments.webhook');
 
-Route::post('webhooks/midtrans', MidtransWebhookController::class)->name('payments.midtrans.webhook');
+Route::post('webhooks/midtrans', MidtransWebhookController::class)
+    ->middleware('throttle:payment-webhooks')
+    ->name('payments.midtrans.webhook');
 
 Route::post('analytics/events', AnalyticsEventController::class)
     ->middleware('throttle:qr-public')

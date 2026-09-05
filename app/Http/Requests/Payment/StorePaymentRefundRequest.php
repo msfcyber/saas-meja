@@ -20,6 +20,7 @@ class StorePaymentRefundRequest extends FormRequest
         return [
             'idempotency_key' => ['required', 'string', 'max:100', 'regex:/\A[A-Za-z0-9._:-]+\z/'],
             'reason' => ['required', 'string', 'min:3', 'max:500'],
+            'amount' => ['sometimes', 'nullable', 'integer', 'min:1'],
         ];
     }
 
@@ -28,6 +29,7 @@ class StorePaymentRefundRequest extends FormRequest
         $this->merge([
             'idempotency_key' => trim((string) $this->header('Idempotency-Key')),
             'reason' => trim((string) $this->input('reason')),
+            'amount' => $this->input('amount'),
         ]);
     }
 }

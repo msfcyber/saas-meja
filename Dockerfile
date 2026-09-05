@@ -104,6 +104,6 @@ RUN mkdir -p \
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
 COPY docker/supervisord.conf /etc/supervisord.conf
 
-EXPOSE 8080
+EXPOSE 8443
 
 CMD ["supervisord", "-c", "/etc/supervisord.conf"]
